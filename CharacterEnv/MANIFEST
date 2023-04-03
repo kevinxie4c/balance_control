@@ -1,0 +1,8 @@
+Changes
+CharacterEnv.xs
+Makefile.PL
+MANIFEST
+ppport.h
+README
+t/CharacterEnv.t
+lib/CharacterEnv.pm

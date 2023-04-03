@@ -1,0 +1,14 @@
+TYPEMAP
+CharacterEnv *          T_OBJECT
+doubleArray *           T_ARRAY
+
+OUTPUT
+T_OBJECT
+    sv_setref_pv( $arg, \"$ntype\", (void*)$var );
+    
+INPUT
+T_OBJECT
+    if (sv_derived_from($arg, \"$ntype\"))
+        $var = ($type)SvIV((SV*)SvRV( $arg ));
+    else
+        croak(\"${ntype}::$func_name() -- $var is not a blessed SV reference\");
