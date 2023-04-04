@@ -26,9 +26,9 @@ doubleArray * doubleArrayPtr(int num)
 MODULE = CharacterEnv		PACKAGE = CharacterEnv		
 
 CharacterEnv *
-CharacterEnv::new(const char *filename)
+CharacterEnv::new(const char *characterFilename, const char *poseFilename)
 CODE:
-    RETVAL = new CharacterEnv(filename);
+    RETVAL = new CharacterEnv(characterFilename, poseFilename);
 OUTPUT:
     RETVAL
 
@@ -55,13 +55,26 @@ OUTPUT:
     RETVAL
 
 
+double
+CharacterEnv::get_time_step()
+CODE:
+    RETVAL = THIS->getTimeStep();
+OUTPUT:
+    RETVAL
+
+
+#void
+#CharacterEnv::set_time_step(double h)
+#CODE:
+#    THIS->setTimeStep(h);
+
+
 void
-CharacterEnv::set_action(doubleArray * array, ...)
+CharacterEnv::set_action_list(doubleArray * array, ...)
 CODE:
     if (ix_array == THIS->action.size())
     {
-	for (size_t i = 0; i < ix_array; ++i)
-	    THIS->action[i] = array[i];
+	memcpy(THIS->action.data(), array, ix_array * sizeof(double));
     }
     else
 	croak("CharacterEnv::set_action(...) -- incorrect number of arguments");
@@ -70,20 +83,45 @@ CLEANUP:
     
 
 doubleArray *
-CharacterEnv::get_state()
+CharacterEnv::get_state_list()
 PREINIT:
     doubleArray* state;
     U32 size_RETVAL;
 CODE:
-    state = new double[THIS->state.size()];
     size_RETVAL = THIS->state.size();
-    for (size_t i = 0; i < size_RETVAL; ++i)
-	state[i] = THIS->state[i];
-    RETVAL = state;
+    RETVAL = THIS->state.data();
 OUTPUT:
     RETVAL
 CLEANUP:
-    free(state);
+    XSRETURN(size_RETVAL);
+
+
+void
+CharacterEnv::set_positions_list(doubleArray * array, ...)
+CODE:
+    if (ix_array == THIS->skeleton->getNumDofs())
+    {
+	Eigen::VectorXd v(ix_array);
+	memcpy(v.data(), array, ix_array * sizeof(double));
+	THIS->skeleton->setPositions(v);
+    }
+    else
+	croak("CharacterEnv::set_positions(...) -- incorrect number of arguments");
+CLEANUP:
+    free(array);
+    
+
+doubleArray *
+CharacterEnv::get_positions_list()
+PREINIT:
+    U32 size_RETVAL;
+CODE:
+    Eigen::VectorXd v = THIS->skeleton->getPositions();
+    size_RETVAL = v.size();
+    RETVAL = v.data();
+OUTPUT:
+    RETVAL
+CLEANUP:
     XSRETURN(size_RETVAL);
 
 
