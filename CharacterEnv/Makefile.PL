@@ -18,11 +18,14 @@ for my $dep (qw(eigen3 assimp dart)) {
 
 sub MY::postamble {
     return <<'MAKE_LIB';
-$(MYEXTLIB): cpp/Makefile
+$(MYEXTLIB): cpp/Makefile cpp/src/*.h cpp/src/*.cpp
 	cd cpp && $(MAKE)
 
 cpp/Makefile: cpp/CMakeLists.txt
-	cd cpp && cmake -DCCCDLFLAGS=$(CCCDLFLAGS) .
+	cd cpp && cmake -DCCCDLFLAGS=$(CCCDLFLAGS) -DCMAKE_BUILD_TYPE=release .
+
+cleancpp: 
+	cd cpp && $(Make) clean
 MAKE_LIB
 }
 
@@ -47,5 +50,5 @@ WriteMakefile(
     LD                => 'g++',
     MYEXTLIB          => 'cpp/libCharacterEnv$(LIB_EXT)',
     depend            => { 'CharacterEnv.o' => 'cpp/libCharacterEnv.a' },
-    clean             => { FILES => 'cpp/libCharacterEnv.a' },
+    clean             => { FILES => 'cpp/libCharacterEnv.a cpp/Makefile cpp/CMakeCache.txt cpp/CMakeFiles' },
 );
