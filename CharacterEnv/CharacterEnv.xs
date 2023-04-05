@@ -26,9 +26,9 @@ doubleArray * doubleArrayPtr(int num)
 MODULE = CharacterEnv		PACKAGE = CharacterEnv		
 
 CharacterEnv *
-CharacterEnv::new(const char *characterFilename, const char *poseFilename)
+CharacterEnv::new(const char *cfgFilename)
 CODE:
-    RETVAL = new CharacterEnv(characterFilename, poseFilename);
+    RETVAL = new CharacterEnv(cfgFilename);
 OUTPUT:
     RETVAL
 
@@ -129,5 +129,21 @@ double
 CharacterEnv::get_reward()
 CODE:
     RETVAL = THIS->reward;
+OUTPUT:
+    RETVAL
+
+
+double
+CharacterEnv::get_period()
+CODE:
+    RETVAL = THIS->period;
+OUTPUT:
+    RETVAL
+
+
+double
+CharacterEnv::get_phase()
+CODE:
+    RETVAL = THIS->phase;
 OUTPUT:
     RETVAL

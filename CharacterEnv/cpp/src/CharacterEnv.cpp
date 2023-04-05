@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cmath>
 #include <Eigen/Core>
+#include <nlohmann/json.hpp>
 #include "SimCharacter.h"
 #include "CharacterEnv.h"
 #include "MathUtil.h"
@@ -10,9 +11,17 @@ using namespace std;
 using namespace Eigen;
 using namespace dart::dynamics;
 
-CharacterEnv::CharacterEnv(const char *characterFilename, const char *poseFilename)
+constexpr size_t n_ef = 4;
+
+CharacterEnv::CharacterEnv(const char *cfgFilename)
 {
-    SimCharacter character(characterFilename);
+    ifstream input(cfgFilename);
+    if (input.fail())
+	throw ios_base::failure(string("cannot open ") + cfgFilename);
+    nlohmann::json json;
+    input >> json;
+
+    SimCharacter character(json["character"]);
     skeleton = character.skeleton;
     skeleton->setGravity(Vector3d(0, -9.8, 0));
     world = dart::simulation::World::create();
@@ -37,10 +46,40 @@ CharacterEnv::CharacterEnv(const char *characterFilename, const char *poseFilena
     cout << "Dofs:" << endl;
     for (const DegreeOfFreedom *dof: skeleton->getDofs())
 	cout << dof->getName() << endl;
-    cout << "endEffectorIndices:" << std::endl;
-    for (size_t i = 0; i < 4; ++i)
+    cout << "endEffectorIndices:" << endl;
+    for (size_t i = 0; i < n_ef; ++i)
 	cout << endEffectorIndices[i] << endl;
-    positions = readVectorXdListFrom(poseFilename);
+    positions = readVectorXdListFrom(json["poses"]);
+
+    floor = Skeleton::create("floor");
+    BodyNodePtr body = floor->createJointAndBodyNodePair<WeldJoint>(nullptr).second;
+    // Deprecated
+    //body->setFrictionCoeff(json["friction_coeff"].get<double>());
+    //body->setRestitutionCoeff(json["restitution_coeff"].get<double>());
+    body->setName("floor");
+    double floor_width = 1e8;
+    double floor_height = 0.01;
+    shared_ptr<BoxShape> box(new BoxShape(Vector3d(floor_width, floor_width, floor_height)));
+    auto shapeNode = body->createShapeNodeWith<CollisionAspect, DynamicsAspect>(box);
+    shapeNode->getDynamicsAspect()->setFrictionCoeff(json["friction_coeff"].get<double>());
+    shapeNode->getDynamicsAspect()->setRestitutionCoeff(json["restitution_coeff"].get<double>());
+    Isometry3d tf(Isometry3d::Identity());
+    tf.translation() = Vector3d(0.0, 0.0, json["floor_z"].get<double>() - floor_height / 2);
+    body->getParentJoint()->setTransformFromParentBodyNode(tf);
+    world->addSkeleton(floor);
+
+    kp = readVectorXdFrom(json["kp"]);
+    kd = readVectorXdFrom(json["kd"]);
+    mkp = MatrixXd::Zero(kp.size(), kp.size());
+    mkd = MatrixXd::Zero(kd.size(), kd.size());
+    mkp.diagonal() = kp;
+    mkd.diagonal() = kd;
+
+    action = VectorXd(skeleton->getNumDofs());
+    period = (double)positions.size() / mocapFPS;
+
+    kin_skeleton = skeleton->cloneSkeleton();
+
     reset();
 }
 
@@ -48,30 +87,42 @@ void CharacterEnv::reset()
 {
     world->reset();
     skeleton->setPositions(positions[0]);
+    VectorXd vel = skeleton->getPositionDifferences(positions[1], positions[0]) * mocapFPS;
+    skeleton->setVelocities(vel);
     phase = 0.0;
     updateState();
 }
 
 void CharacterEnv::step()
 {
-    //Eigen::MatrixXd kp = Eigen::MatrixXd::Zero(2, 2), kd = Eigen::MatrixXd::Zero(2, 2);
-    //kp.diagonal() = this->kp;
-    //kd.diagonal() = this->kd;
     double intPart;
     phase = modf(getTime() / period, &intPart);
+    frameIdx = (size_t)round(phase * positions.size());
+    if (frameIdx >= positions.size())
+	frameIdx -= positions.size();
+    const VectorXd &target = positions[frameIdx];
+    VectorXd ref = target + action;
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
 	// stable PD
-	//Eigen::VectorXd q = skeleton->getPositions();
-	//Eigen::VectorXd dq = skeleton->getVelocities();
-	//Eigen::Vector2d target{sin(phase * 2 * M_PI), 0};
-	//Eigen::Vector2d ref = target + action;
-	//Eigen::MatrixXd invM = (skeleton->getMassMatrix() + kd * skeleton->getTimeStep()).inverse();
-	//Eigen::VectorXd p = -kp * skeleton->getPositionDifferences(q + dq * skeleton->getTimeStep(), ref);
-	//Eigen::VectorXd d = -kd * dq;
-	//Eigen::VectorXd qddot = invM * (-skeleton->getCoriolisAndGravityForces() + p + d + skeleton->getConstraintForces());
-	//Eigen::VectorXd force = p + d - kd * qddot * world->getTimeStep();
-	//skeleton->setForces(force);
+	VectorXd q = skeleton->getPositions();
+	VectorXd dq = skeleton->getVelocities();
+	MatrixXd invM = (skeleton->getMassMatrix() + mkd * skeleton->getTimeStep()).inverse();
+	VectorXd p = -mkp * skeleton->getPositionDifferences(q + dq * skeleton->getTimeStep(), ref);
+	VectorXd d = -mkd * dq;
+	VectorXd qddot = invM * (-skeleton->getCoriolisAndGravityForces() + p + d + skeleton->getConstraintForces());
+	VectorXd force = p + d - mkd * qddot * world->getTimeStep();
+
+	// PD
+	/*
+	VectorXd q = skeleton->getPositions();
+	VectorXd dq = skeleton->getVelocities();
+	VectorXd p = -mkp * skeleton->getPositionDifferences(q, ref);
+	VectorXd d = -mkd * dq;
+	VectorXd force = p + d;
+	*/
+
+	skeleton->setForces(force);
 	world->step();
     }
     updateState();
@@ -79,8 +130,8 @@ void CharacterEnv::step()
 
 void CharacterEnv::updateState()
 {
-    Eigen::VectorXd q = skeleton->getPositions();
-    Eigen::VectorXd dq = skeleton->getVelocities();
+    VectorXd q = skeleton->getPositions();
+    VectorXd dq = skeleton->getVelocities();
     double intPart;
     phase = modf(getTime() / period, &intPart);
     VectorXd s(skeleton->getNumBodyNodes() * 12);
@@ -103,7 +154,7 @@ void CharacterEnv::updateState()
         s.segment(i * 12 + 9, 3) = bn->getAngularVelocity(Frame::World(), root);
     }
     state << s, phase;
-    reward = 1;
+    reward = 20 - cost();
 }
 
 double CharacterEnv::getTime()
@@ -125,10 +176,57 @@ void CharacterEnv::setTimeStep(double h)
 
 double CharacterEnv::cost()
 {
-    std::vector<BodyNode*> nodes = skeleton->getBodyNodes();
-    size_t n = nodes.size();
+    kin_skeleton->setPositions(positions[frameIdx]);
+    const vector<Joint*> &joints = skeleton->getJoints();
+    const vector<Joint*> &kin_joints = kin_skeleton->getJoints();
+    size_t n = joints.size();
+
+    double err_p = 0;
     for (size_t i = 0; i < n; ++i)
     {
-	const BodyNode *bn = nodes[i];
+	const Joint *joint = joints[i];
+	const Joint *kin_joint = kin_joints[i];
+	//err_p += joint->getPositionDifferences(joint->getPositions(), kin_joint->getPositions()).norm() + 0.1 * (joint->getVelocities() - kin_joint->getVelocities()).norm();
+	err_p += joint->getPositionDifferences(joint->getPositions(), kin_joint->getPositions()).norm();
     }
+    err_p /= n;
+
+    double err_r = 0;
+    const Joint *joint = skeleton->getRootJoint();
+    const Joint *kin_joint = kin_skeleton->getRootJoint();
+    //err_r += joint->getPositionDifferences(joint->getPositions(), kin_joint->getPositions()).norm() + 0.1 * (joint->getVelocities() - kin_joint->getVelocities()).norm();
+    err_r += joint->getPositionDifferences(joint->getPositions(), kin_joint->getPositions()).norm();
+
+    double err_e = 0;
+    for (size_t i = 0; i < n_ef; ++i)
+    {
+	const BodyNode *node = skeleton->getBodyNode(i);
+	const BodyNode *kin_node = kin_skeleton->getBodyNode(i);
+	Eigen::Vector3d p = node->getCOM();
+	Eigen::Vector3d pr = kin_node->getCOM();
+	err_e += fabs(p.y() - pr.y());
+    }
+    err_e /= n_ef;
+
+    double err_b = 0;
+    Eigen::Vector3d COM = skeleton->getCOM();
+    Eigen::Vector3d COMr = kin_skeleton->getCOM();
+    for (size_t i = 0; i < n_ef; ++i)
+    {
+	const BodyNode *node = skeleton->getBodyNode(i);
+	const BodyNode *kin_node = kin_skeleton->getBodyNode(i);
+	Eigen::Vector3d p = node->getCOM();
+	Eigen::Vector3d pr = kin_node->getCOM();
+	Eigen::Vector3d rci = COM - p;
+	rci.z() = 0;
+	Eigen::Vector3d rci_r = COMr - pr;
+	rci_r.z() = 0;
+	err_b += (rci - rci_r).norm();
+    }
+    constexpr double h = 1.6;
+    err_b /= h * n_ef;
+    //err_b += (skeleton->getCOMLinearVelocity() - kin_skeleton->getCOMLinearVelocity()).norm() * 0.1;
+
+    //cout << "cost: " << " " << err_p << " " << err_r << " " << err_e << " " << err_b << endl;
+    return w_p * err_p + w_r * err_r + w_e * err_e + w_b * err_b;
 }

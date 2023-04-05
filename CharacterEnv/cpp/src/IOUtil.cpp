@@ -1,3 +1,4 @@
+#include <cstring>
 #include "IOUtil.h"
 
 std::vector<double> readListFrom(const std::string &filename)
@@ -11,6 +12,14 @@ std::vector<double> readListFrom(const std::string &filename)
 	list.push_back(d);
     input.close();
     return list;
+}
+
+Eigen::VectorXd readVectorXdFrom(const std::string &filename)
+{
+    std::vector<double> list = readListFrom(filename);
+    Eigen::VectorXd v(list.size());
+    memcpy(v.data(), list.data(), list.size() * sizeof(double));
+    return v;
 }
 
 std::vector<Eigen::VectorXd> readVectorXdListFrom(const std::string &filename)
@@ -28,8 +37,7 @@ std::vector<Eigen::VectorXd> readVectorXdListFrom(const std::string &filename)
 	while (strStream >> d)
 	    list.push_back(d);
 	Eigen::VectorXd v(list.size());
-	for (size_t i = 0; i < list.size(); ++i)
-	    v[i] = list[i];
+	memcpy(v.data(), list.data(), list.size() * sizeof(double));
 	result.push_back(v);
     }
     input.close();

@@ -1,0 +1,9 @@
+{
+    "character": "data/humanoid.json",
+    "poses": "data/positions.txt",
+    "floor_z": 0.037,
+    "friction_coeff": 1.0,
+    "restitution_coeff": 0.0,
+    "kp": "data/kp.txt",
+    "kd": "data/kd.txt"
+}
