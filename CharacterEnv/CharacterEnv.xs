@@ -147,3 +147,19 @@ CODE:
     RETVAL = THIS->phase;
 OUTPUT:
     RETVAL
+
+
+size_t
+CharacterEnv::get_state_size()
+CODE:
+    RETVAL = THIS->state.size();
+OUTPUT:
+    RETVAL
+
+
+size_t
+CharacterEnv::get_action_size()
+CODE:
+    RETVAL = THIS->action.size();
+OUTPUT:
+    RETVAL
