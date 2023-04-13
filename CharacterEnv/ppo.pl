@@ -17,12 +17,12 @@ GetOptions(
 );
 
 mkdir $outdir unless -e $outdir;
-my $ctx = $use_gpu ? mx->gpu : mx->cpu;
+mx->Context->set_current($use_gpu ? mx->gpu : mx->cpu);
 
 sub discounted_cumulative_sums {
     my ($x, $discount) = @_;
     my $n = $x->size;
-    my $y = nd->zeros([$n], ctx => $ctx);
+    my $y = nd->zeros([$n]);
     my $r = 0;
     for my $i (reverse(0 .. $n - 1)) {
 	$r = $x->slice($i) + $discount * $r;
@@ -39,7 +39,7 @@ sub nd_std {
 }
 
 # discounted_cumulative_sums test
-#my $x = nd->ones([5], 'ctx' => $ctx);
+#my $x = nd->ones([5]);
 #my $y = discounted_cumulative_sums($x, 0.5);
 #print $y->aspdl;
 
@@ -49,13 +49,13 @@ package Buffer {
 	$gamma = 0.99 unless defined($gamma);
 	$lam = 0.95 unless defined($lam);
 	my $self = bless {
-	    observation_buffer => nd->zeros([$size, $ob_dim], ctx => $ctx),
-	    action_buffer => nd->zeros([$size, $ac_dim], ctx => $ctx),
-	    advantage_buffer => nd->zeros([$size], ctx => $ctx),
-	    reward_buffer => nd->zeros([$size], ctx => $ctx),
-	    return_buffer => nd->zeros([$size], ctx => $ctx),
-	    value_buffer => nd->zeros([$size], ctx => $ctx),
-	    logprobability_buffer => nd->zeros([$size], ctx => $ctx),
+	    observation_buffer => nd->zeros([$size, $ob_dim]),
+	    action_buffer => nd->zeros([$size, $ac_dim]),
+	    advantage_buffer => nd->zeros([$size]),
+	    reward_buffer => nd->zeros([$size]),
+	    return_buffer => nd->zeros([$size]),
+	    value_buffer => nd->zeros([$size]),
+	    logprobability_buffer => nd->zeros([$size]),
 	    gamma => $gamma,
 	    lam => $lam,
 	    pointer => 0,
@@ -78,8 +78,8 @@ package Buffer {
 	my ($self, $last_value) = @_;
 	$last_value = 0 unless defined $last_value;
 	my ($a, $b) = ($self->{trajectory_start_index}, $self->{pointer} - 1);
-	my $rewards = nd->concatenate([$self->{reward_buffer}->slice([$a, $b]), nd->array([$last_value], ctx => $ctx)]);
-	my $values = nd->concatenate([$self->{value_buffer}->slice([$a, $b]), nd->array([$last_value], ctx => $ctx)]);
+	my $rewards = nd->concatenate([$self->{reward_buffer}->slice([$a, $b]), nd->array([$last_value])]);
+	my $values = nd->concatenate([$self->{value_buffer}->slice([$a, $b]), nd->array([$last_value])]);
 	my $deltas = $rewards->slice([0,-2]) + $self->{gamma} * $values->slice([1,-1]) - $values->slice([0,-2]);
 
 	$self->{advantage_buffer}->slice([$a, $b]) .= main::discounted_cumulative_sums($deltas, $self->{gamma} * $self->{lam});
@@ -169,7 +169,7 @@ package ActorModel {
     }
 
     method sample($mu, $sigma) {
-	my $eps = nd->random_normal(0, 1, $mu->shape, ctx => $ctx);
+	my $eps = nd->random_normal(0, 1, $mu->shape);
 	return $mu + $sigma * $eps;
     }
     
@@ -195,11 +195,11 @@ my $critic_net = mlp([$unit_size, $unit_size, 1], 'relu');
 #print $critic_net;
 if (defined($load_model)) {
     die "Canno find the model files!" unless -d $load_model and -f "$load_model/actor.par" and -f "$load_model/critic.par";
-    $actor_net->load_parameters("$load_model/actor.par", ctx => $ctx);
-    $critic_net->load_parameters("$load_model/critic.par", ctx => $ctx);
+    $actor_net->load_parameters("$load_model/actor.par");
+    $critic_net->load_parameters("$load_model/critic.par");
 } else {
-    $actor_net->initialize(mx->init->Xavier(), ctx => $ctx);
-    $critic_net->initialize(mx->init->Xavier(), ctx => $ctx);
+    $actor_net->initialize(mx->init->Xavier());
+    $critic_net->initialize(mx->init->Xavier());
 }
 
 my $policy_optimizer = gluon->Trainer(
@@ -245,7 +245,7 @@ sub train_value_function {
 my $buffer = Buffer->new($state_size, $action_size, $steps_per_epoch);
 $env->reset;
 #my $a_scale = Math::Trig::pi;
-my $a_scale = 1;
+my $a_scale = 0.5;
 
 my $i_img = 0;
 
@@ -261,7 +261,7 @@ $SIG{INT} = sub {
 
 if ($play_policy) {
     open my $fout, '>', "$outdir/positions.txt";
-    my $observation = nd->array([[$env->get_state_list]], ctx => $ctx);
+    my $observation = nd->array([[$env->get_state_list]]);
     #for my $t (1 .. $steps_per_epoch) {
     for my $t (1 .. 100) {
 	print $fout join(' ', $env->get_positions_list), "\n";
@@ -274,7 +274,7 @@ if ($play_policy) {
 	my $reward = $env->get_reward;
 	#my $done = $reward < 10;
 	#last if $done;
-	$observation= nd->array([[$env->get_state_list]], ctx => $ctx);
+	$observation= nd->array([[$env->get_state_list]]);
     }
     exit;
 }
@@ -286,12 +286,12 @@ open my $f_ret, '>', "$outdir/return_length.txt";
 for my $epoch (1 .. $epochs) {
     my ($sum_return, $sum_length, $num_episodes) = (0, 0, 0);
     my ($episode_return, $episode_length) = (0, 0);
-    my $observation = nd->array([[$env->get_state_list]], ctx => $ctx);
+    my $observation = nd->array([[$env->get_state_list]]);
 
     for my $t (1 .. $steps_per_epoch) {
 	my ($mu, $sigma) = $actor_net->($observation);
 	my $action = $actor_net->choose_action($observation);
-	#$action = nd->array([[0, 0]], ctx => $ctx); # debug
+	#$action = nd->array([[0, 0]]); # debug
 	#print $f_action join(' ', $action->aspdl->list), "\n";	# debug
 	#print $f_pos join(' ', $env->get_state_list), "\n";	# debug
 	#render;    # debug
@@ -303,7 +303,7 @@ for my $epoch (1 .. $epochs) {
 	#print(join(" ", $env->get_state_list), "\n");   # debug
 	my $done = $reward < 10;
 	#$done = 0; # debug
-	my $observation_new = nd->array([[$env->get_state_list]], ctx => $ctx);
+	my $observation_new = nd->array([[$env->get_state_list]]);
 	$episode_return += $reward;
 	$episode_length += 1;
 
@@ -322,7 +322,7 @@ for my $epoch (1 .. $epochs) {
 	    $num_episodes += 1;
 	    $env->reset;
 	    ($episode_return, $episode_length) = (0, 0);
-	    $observation = nd->array([[$env->get_state_list]], ctx => $ctx);
+	    $observation = nd->array([[$env->get_state_list]]);
 	}
     }
 
