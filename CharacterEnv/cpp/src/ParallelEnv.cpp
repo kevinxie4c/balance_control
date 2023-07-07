@@ -20,13 +20,27 @@ ParallelEnv::ParallelEnv(const char *cfgFilename, size_t num_threads): stop_all(
 	envs.push_back(make_shared<CharacterEnv>(cfgFilename));
 	ids.push_back(i);
 	task_done.push(i);
-	pthread_create(&threads[i], NULL, env_step, &ids);
+	pthread_create(&threads[i], NULL, env_step, &ids[i]);
 	pthread_detach(threads[i]);
     }
 }
 
 size_t ParallelEnv::get_task_done_id()
 {
+    size_t id;
+    pthread_mutex_lock(&done_lock);
+    if (task_done.size() == 0)
+	pthread_cond_wait(&done_cond, done_lock)
+    id = task_done.front();
+    task_done.pop();
+    pthread_mutex_unlock(&done_lock);
+    return id;
+}
+
+void ParallelEnv::step(size_t id)
+{
+    task_todo.push_back(id);
+    pthread_cond_signal();
 }
 
 void *ParallelEnv::env_step(void *arg)
@@ -36,10 +50,10 @@ void *ParallelEnv::env_step(void *arg)
 
     while (1)
     {
-	pthread_mutex_lock(&work_locks[i]);
+	pthread_mutex_lock(&work_locks[id]);
 	if (task_todo.empty() || task_todo.front() != id)
-	    pthread_cond_wait(&work_conds[i], &work_locks[i]);
-	pthread_mutex_unlock(&work_locks[i]);
+	    pthread_cond_wait(&work_conds[id], &work_locks[id]);
+	pthread_mutex_unlock(&work_locks[id]);
 
 	if (stop_all)
 	    break;
@@ -49,12 +63,12 @@ void *ParallelEnv::env_step(void *arg)
 	task_todo.pop();
 	pthread_mutex_unlock(&todo_lock);
 
-	env[i].step();
+	env[id].step();
 
 	pthread_mutex_lock(&done_lock);
 	task_done.push(id);
-	pthread_cond_signal(&done_cond);
 	pthread_mutex_unlock(&done_lock);
+	pthread_cond_signal(&done_cond);
     }
 
     cout << "thread #" << id << " ends" << endl;
