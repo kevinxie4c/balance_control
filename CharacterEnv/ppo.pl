@@ -17,7 +17,8 @@ GetOptions(
 );
 
 mkdir $outdir unless -e $outdir;
-mx->Context->set_current($use_gpu ? mx->gpu : mx->cpu);
+#mx->Context->set_current($use_gpu ? mx->gpu : mx->cpu);
+$AI::MXNet::current_ctx = $use_gpu ? mx->gpu : mx->cpu;
 
 sub discounted_cumulative_sums {
     my ($x, $discount) = @_;
