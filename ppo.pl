@@ -104,7 +104,7 @@ use GD;
 use File::Slurp;
 use PDL;
 use FindBin;
-use blib "$FindBin::Bin/blib";
+use blib "$FindBin::Bin/CharacterEnv/blib";
 use CharacterEnv;
 
 my $env = CharacterEnv->new('data/env_config.json');

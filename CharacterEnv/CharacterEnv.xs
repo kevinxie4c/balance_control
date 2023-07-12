@@ -2,6 +2,7 @@
 
 // Perl header files define some macros that conflict with the C++ header files. So put the header here.
 #include "CharacterEnv.h"
+#include "ParallelEnv.h"
 
 
 #ifdef __cplusplus
@@ -161,5 +162,15 @@ size_t
 CharacterEnv::get_action_size()
 CODE:
     RETVAL = THIS->action.size();
+OUTPUT:
+    RETVAL
+    
+
+MODULE = CharacterEnv		PACKAGE = ParallelEnv
+
+ParallelEnv *
+ParallelEnv::new(const char *cfgFilename, size_t num_threads)
+CODE:
+    RETVAL = new ParallelEnv(cfgFilename, num_threads);
 OUTPUT:
     RETVAL

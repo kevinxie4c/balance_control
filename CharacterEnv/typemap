@@ -1,5 +1,6 @@
 TYPEMAP
 CharacterEnv *          T_OBJECT
+ParallelEnv *           T_OBJECT
 doubleArray *           T_ARRAY
 
 OUTPUT

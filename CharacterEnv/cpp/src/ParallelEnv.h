@@ -3,8 +3,10 @@
 
 #include <vector>
 #include <queue>
-#include <shared_ptr>
+#include <memory>
 #include "CharacterEnv.h"
+
+struct ParaArg;
 
 class ParallelEnv
 {
@@ -13,7 +15,8 @@ class ParallelEnv
 	std::vector<std::shared_ptr<CharacterEnv>> envs;
 
 	ParallelEnv(const char *cfgFilename, size_t num_threads);
-	size_t ParallelEnv::get_task_done_id();
+	size_t get_task_done_id();
+	void step(size_t id);
 	~ParallelEnv();
 
     private:
@@ -27,8 +30,15 @@ class ParallelEnv
 	std::vector<pthread_mutex_t> work_locks;
 	pthread_cond_t done_cond;
 	std::vector<size_t> ids;
+	std::vector<ParaArg> args;
 
-	void *env_step(void *arg);
+	static void *env_step(void *arg);
+};
+
+struct ParaArg
+{
+    ParallelEnv *env;
+    size_t id;
 };
 
 #endif
