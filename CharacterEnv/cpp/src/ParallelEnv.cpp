@@ -18,7 +18,8 @@ ParallelEnv::ParallelEnv(const char *cfgFilename, size_t num_threads): stop_all(
     {
 	pthread_cond_init(&work_conds[i], NULL);
 	pthread_mutex_init(&work_locks[i], NULL);
-	envs.push_back(make_shared<CharacterEnv>(cfgFilename));
+	//envs.push_back(make_shared<CharacterEnv>(cfgFilename));
+	envs.push_back(new CharacterEnv(cfgFilename));
 	args.push_back({ this, i });
 	task_done.push(i);
 	pthread_create(&threads[i], NULL, env_step, &args[i]);
@@ -92,5 +93,7 @@ ParallelEnv::~ParallelEnv()
 	pthread_cond_destroy(&work_conds[i]);
 	pthread_mutex_destroy(&work_locks[i]);
     }
+    for (CharacterEnv* ptr: envs)
+	delete ptr;
     cout << "ParallelEnv destory" << endl;
 }

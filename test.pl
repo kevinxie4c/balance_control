@@ -7,6 +7,7 @@ use CharacterEnv;
 my $tm_total = time;
 my $step_time;
 
+print "CharacterEnv test\n";
 my $env = CharacterEnv->new('data/env_config.json');
 print "state_size: ", $env->get_state_size, "\n";
 print "action_size: ", $env->get_action_size, "\n";
@@ -30,5 +31,9 @@ print "total_time: $total_time\n";
 print "step_time: $step_time\n";
 print "step_time / total_time: ", $step_time / $total_time, "\n";
 
+print "ParallelEnv test\n";
 $env = ParallelEnv->new('data/env_config.json', 4);
 print $env, "\n";
+my @envs = $env->get_env_list;
+print "# of envs: ", scalar(@envs), "\n";
+print "envs[0]: $envs[0]\n"

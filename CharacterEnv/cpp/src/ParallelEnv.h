@@ -12,7 +12,8 @@ class ParallelEnv
 {
     public:
 	int num_threads;
-	std::vector<std::shared_ptr<CharacterEnv>> envs;
+	//std::vector<std::shared_ptr<CharacterEnv>> envs;
+	std::vector<CharacterEnv*> envs;
 
 	ParallelEnv(const char *cfgFilename, size_t num_threads);
 	size_t get_task_done_id();

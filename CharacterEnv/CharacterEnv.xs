@@ -17,6 +17,7 @@ extern "C" {
 }
 #endif
 
+
 typedef double doubleArray;
 
 doubleArray * doubleArrayPtr(int num)
@@ -24,7 +25,10 @@ doubleArray * doubleArrayPtr(int num)
     return new doubleArray[num];
 }
 
-MODULE = CharacterEnv		PACKAGE = CharacterEnv		
+typedef CharacterEnv* CharacterEnvPtrArray;
+
+
+MODULE = CharacterEnv		PACKAGE = CharacterEnv
 
 CharacterEnv *
 CharacterEnv::new(const char *cfgFilename)
@@ -35,6 +39,10 @@ OUTPUT:
 
 
 MODULE = CharacterEnv		PACKAGE = CharacterEnvPtr
+
+void
+CharacterEnv::DESTROY()
+
 
 void
 CharacterEnv::reset()
@@ -174,3 +182,22 @@ CODE:
     RETVAL = new ParallelEnv(cfgFilename, num_threads);
 OUTPUT:
     RETVAL
+
+
+MODULE = CharacterEnv		PACKAGE = ParallelEnvPtr
+
+void
+ParallelEnv::DESTROY()
+
+
+CharacterEnvPtrArray *
+ParallelEnv::get_env_list()
+PREINIT:
+    U32 size_RETVAL;
+CODE:
+    size_RETVAL = THIS->envs.size();
+    RETVAL = THIS->envs.data();
+OUTPUT:
+    RETVAL
+CLEANUP:
+    XSRETURN(size_RETVAL);
