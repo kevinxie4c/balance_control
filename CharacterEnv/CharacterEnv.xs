@@ -40,8 +40,8 @@ OUTPUT:
 
 MODULE = CharacterEnv		PACKAGE = CharacterEnvPtr
 
-void
-CharacterEnv::DESTROY()
+#void
+#CharacterEnv::DESTROY()
 
 
 void
