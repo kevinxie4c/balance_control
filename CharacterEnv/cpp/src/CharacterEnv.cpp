@@ -27,6 +27,7 @@ CharacterEnv::CharacterEnv(const char *cfgFilename)
     world = dart::simulation::World::create();
     world->addSkeleton(skeleton);
     world->setTimeStep(1.0 / forceRate);
+    world->getConstraintSolver()->setCollisionDetector(dart::collision::DARTCollisionDetector::create());
     state = VectorXd(skeleton->getNumBodyNodes() * 12 + 1);
     cout << "BodyNode:" << endl;
     size_t j = 0;
