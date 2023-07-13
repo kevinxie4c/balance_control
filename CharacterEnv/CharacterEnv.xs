@@ -201,3 +201,11 @@ OUTPUT:
     RETVAL
 CLEANUP:
     XSRETURN(size_RETVAL);
+
+
+size_t
+ParallelEnv::get_task_done_id()
+
+
+void
+ParallelEnv::step(size_t id)

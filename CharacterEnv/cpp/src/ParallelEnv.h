@@ -2,7 +2,7 @@
 #define PARALLEL_ENV_H
 
 #include <vector>
-#include <queue>
+#include <deque>
 #include <memory>
 #include "CharacterEnv.h"
 
@@ -22,11 +22,11 @@ class ParallelEnv
 
     private:
 	std::vector<pthread_t> threads;
-	std::queue<size_t> task_todo;
-	std::queue<size_t> task_done;
+	std::vector<bool> task_todo;
+	std::deque<size_t> task_done;
 	bool stop_all;
 
-	pthread_mutex_t todo_lock, done_lock;
+	pthread_mutex_t done_lock;
 	std::vector<pthread_cond_t> work_conds;
 	std::vector<pthread_mutex_t> work_locks;
 	pthread_cond_t done_cond;

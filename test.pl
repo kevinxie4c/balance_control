@@ -32,8 +32,29 @@ print "step_time: $step_time\n";
 print "step_time / total_time: ", $step_time / $total_time, "\n";
 
 print "ParallelEnv test\n";
-$env = ParallelEnv->new('data/env_config.json', 4);
+my $num_threads = 4;
+$env = ParallelEnv->new('data/env_config.json', $num_threads);
 print $env, "\n";
 my @envs = $env->get_env_list;
 print "# of envs: ", scalar(@envs), "\n";
-print "envs[0]: $envs[0]\n"
+print "envs[0] $envs[0]\n";
+#print "envs[1]->time ", $envs[1]->get_time, "\n";
+
+for (1 .. 400) {
+    my $id = $env->get_task_done_id;
+    print "$id\n";
+    $env->step($id);
+}
+my $all_done = 0;
+my @dones = (0) x $num_threads;
+while (!$all_done) {
+    my $id = $env->get_task_done_id;
+    $dones[$id] = 1;
+    $all_done = 1;
+    for (@dones) {
+	$all_done = $all_done && $_;
+    }
+}
+for my $id (0 .. $#envs) {
+    print "envs[$id]->time ", $envs[$id]->get_time, "\n";
+}
