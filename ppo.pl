@@ -17,8 +17,12 @@ GetOptions(
 );
 
 mkdir $outdir unless -e $outdir;
-#mx->Context->set_current($use_gpu ? mx->gpu : mx->cpu);
-$AI::MXNet::current_ctx = $use_gpu ? mx->gpu : mx->cpu;
+my $current_ctx = $use_gpu ? mx->gpu : mx->cpu;
+mx->Context->set_current($current_ctx);
+#$AI::MXNet::current_ctx = $current_ctx
+
+my $test_tensor = nd->zeros([2, 2]);
+print "test tensor: $test_tensor\n";
 
 sub discounted_cumulative_sums {
     my ($x, $discount) = @_;
@@ -50,13 +54,13 @@ package Buffer {
 	$gamma = 0.99 unless defined($gamma);
 	$lam = 0.95 unless defined($lam);
 	my $self = bless {
-	    observation_buffer => nd->zeros([$size, $ob_dim]),
-	    action_buffer => nd->zeros([$size, $ac_dim]),
-	    advantage_buffer => nd->zeros([$size]),
-	    reward_buffer => nd->zeros([$size]),
-	    return_buffer => nd->zeros([$size]),
-	    value_buffer => nd->zeros([$size]),
-	    logprobability_buffer => nd->zeros([$size]),
+	    observation_buffer     => nd->zeros([$size, $ob_dim]),
+	    action_buffer          => nd->zeros([$size, $ac_dim]),
+	    advantage_buffer       => nd->zeros([$size]),
+	    reward_buffer          => nd->zeros([$size]),
+	    return_buffer          => nd->zeros([$size]),
+	    value_buffer           => nd->zeros([$size]),
+	    logprobability_buffer  => nd->zeros([$size]),
 	    gamma => $gamma,
 	    lam => $lam,
 	    pointer => 0,
@@ -97,6 +101,19 @@ package Buffer {
 	$self->{advantage_buffer} = ($self->{advantage_buffer} - $advantage_mean) / $advantage_std;
 	return ($self->{observation_buffer}, $self->{action_buffer}, $self->{advantage_buffer}, $self->{return_buffer}, $self->{logprobability_buffer});
     }
+
+    #sub concat {
+    #    my $class = shift;
+    #    my $buffer = bless {
+    #        observation_buffer    => nd->concat(map({ $_->{observation_buffer} }    @_), dim => 0),
+    #        action_buffer         => nd->concat(map({ $_->{action_buffer} }         @_), dim => 0),
+    #        advantage_buffer      => nd->concat(map({ $_->{advantage_buffer} }      @_), dim => 0),
+    #        reward_buffer         => nd->concat(map({ $_->{reward_buffer} }         @_), dim => 0),
+    #        return_buffer         => nd->concat(map({ $_->{return_buffer} }         @_), dim => 0),
+    #        value_buffer          => nd->concat(map({ $_->{value_buffer} }          @_), dim => 0),
+    #        logprobability_buffer => nd->concat(map({ $_->{logprobability_buffer} } @_), dim => 0),
+    #    }, $class;
+    #}
 }
 
 use Math::Trig ();
@@ -107,10 +124,12 @@ use FindBin;
 use blib "$FindBin::Bin/CharacterEnv/blib";
 use CharacterEnv;
 
-my $env = CharacterEnv->new('data/env_config.json');
+my $num_threads = 4;
+my $para_env = ParallelEnv->new('data/env_config.json', $num_threads);
+my @envs = $para_env->get_env_list;
 my $unit_size = 512;
-my $state_size = $env->get_state_size;
-my $action_size = $env->get_action_size;
+my $state_size = $envs[0]->get_state_size;
+my $action_size = $envs[0]->get_action_size;
 
 sub mlp {
     my ($sizes, $activation) = @_;
@@ -170,7 +189,7 @@ package ActorModel {
     }
 
     method sample($mu, $sigma) {
-	my $eps = nd->random_normal(0, 1, $mu->shape);
+	my $eps = nd->random_normal(0, 1, $mu->shape, ctx => $current_ctx);
 	return $mu + $sigma * $eps;
     }
     
@@ -180,7 +199,7 @@ package ActorModel {
 }
 
 
-my $steps_per_epoch = 500;
+my $steps_per_epoch = 200;
 my $epochs = 5000;
 my $gamma = 0.99;
 my $clip_ratio = 0.2;
@@ -243,8 +262,15 @@ sub train_value_function {
     $value_optimizer->step($return_buffer->shape->[0]);
 }
 
-my $buffer = Buffer->new($state_size, $action_size, $steps_per_epoch);
-$env->reset;
+#my $buffer = Buffer->new($state_size, $action_size, $steps_per_epoch);
+my @buffers;
+for (1 .. $num_threads) {
+    push(@buffers, Buffer->new($state_size, $action_size, $steps_per_epoch));
+}
+
+for my $env (@envs) {
+    $env->reset;
+}
 #my $a_scale = Math::Trig::pi;
 my $a_scale = 0.5;
 
@@ -261,6 +287,7 @@ $SIG{INT} = sub {
 };
 
 if ($play_policy) {
+    my $env = $envs[0];
     open my $fout, '>', "$outdir/positions.txt";
     my $observation = nd->array([[$env->get_state_list]]);
     #for my $t (1 .. $steps_per_epoch) {
@@ -285,59 +312,143 @@ if ($play_policy) {
 open my $f_ret, '>', "$outdir/return_length.txt";
 
 for my $epoch (1 .. $epochs) {
+    $para_env->reset;
     my ($sum_return, $sum_length, $num_episodes) = (0, 0, 0);
-    my ($episode_return, $episode_length) = (0, 0);
-    my $observation = nd->array([[$env->get_state_list]]);
+    #my ($episode_return, $episode_length) = (0, 0);
+    #my $observation = nd->array([[$env->get_state_list]]);
 
-    for my $t (1 .. $steps_per_epoch) {
-	my ($mu, $sigma) = $actor_net->($observation);
-	my $action = $actor_net->choose_action($observation);
-	#$action = nd->array([[0, 0]]); # debug
-	#print $f_action join(' ', $action->aspdl->list), "\n";	# debug
-	#print $f_pos join(' ', $env->get_state_list), "\n";	# debug
-	#render;    # debug
-	$action = $action->clip(-1, 1);
-	$env->set_action_list(($action * $a_scale)->aspdl->list);
-	$env->step;
-	my $reward = $env->get_reward;
-	#print(($env->get_state_list)[4], "\t", $reward, "\n");  # debug
-	#print(join(" ", $env->get_state_list), "\n");   # debug
-	my $done = $reward < 10;
-	#$done = 0; # debug
-	my $observation_new = nd->array([[$env->get_state_list]]);
-	$episode_return += $reward;
-	$episode_length += 1;
+    #for my $t (1 .. $steps_per_epoch) {
+    #    my ($mu, $sigma) = $actor_net->($observation);
+    #    my $action = $actor_net->choose_action($observation);
+    #    #$action = nd->array([[0, 0]]); # debug
+    #    #print $f_action join(' ', $action->aspdl->list), "\n";	# debug
+    #    #print $f_pos join(' ', $env->get_state_list), "\n";	# debug
+    #    #render;    # debug
+    #    $action = $action->clip(-1, 1);
+    #    $env->set_action_list(($action * $a_scale)->aspdl->list);
+    #    $env->step;
+    #    my $reward = $env->get_reward;
+    #    #print(($env->get_state_list)[4], "\t", $reward, "\n");  # debug
+    #    #print(join(" ", $env->get_state_list), "\n");   # debug
+    #    my $done = $reward < 10;
+    #    #$done = 0; # debug
+    #    my $observation_new = nd->array([[$env->get_state_list]]);
+    #    $episode_return += $reward;
+    #    $episode_length += 1;
 
-	my $value_t = $critic_net->($observation)->aspdl->at(0, 0);
-	my $logprobability_t = $actor_net->log_prob($action, $mu, $sigma)->aspdl->at(0, 0);
+    #    my $value_t = $critic_net->($observation)->aspdl->at(0, 0);
+    #    my $logprobability_t = $actor_net->log_prob($action, $mu, $sigma)->aspdl->at(0, 0);
 
-	$buffer->store($observation, $action, $reward, $value_t, $logprobability_t);
-	$observation = $observation_new;
+    #    $buffer->store($observation, $action, $reward, $value_t, $logprobability_t);
+    #    $observation = $observation_new;
 
-	if ($done || $t == $steps_per_epoch) {
-	    #exit;  # debug
-	    my $last_value = $value_t;
-	    $buffer->finish_trajectory($last_value);
-	    $sum_return += $episode_return;
-	    $sum_length += $episode_length;
-	    $num_episodes += 1;
-	    $env->reset;
-	    ($episode_return, $episode_length) = (0, 0);
-	    $observation = nd->array([[$env->get_state_list]]);
+    #    if ($done || $t == $steps_per_epoch) {
+    #        #exit;  # debug
+    #        my $last_value = $value_t;
+    #        $buffer->finish_trajectory($last_value);
+    #        $sum_return += $episode_return;
+    #        $sum_length += $episode_length;
+    #        $num_episodes += 1;
+    #        $env->reset;
+    #        ($episode_return, $episode_length) = (0, 0);
+    #        $observation = nd->array([[$env->get_state_list]]);
+    #    }
+    #}
+
+    my @finished = (1) x $num_threads;
+    my @steps = (0) x $num_threads;
+    my (@observation, @action, @mu, @sigma);
+    for my $t (1 .. $steps_per_epoch * $num_threads) {
+	my $id = $para_env->get_task_done_id;
+	my $env = $envs[$id];
+
+	if (defined($observation[$id])) {
+	    my $reward = $env->get_reward;
+	    my $done = $reward < 10;
+	    $sum_return += $reward;
+	    $sum_length += 1;
+
+	    my $value_t = $critic_net->($observation[$id])->aspdl->at(0, 0);
+	    my $logprobability_t = $actor_net->log_prob($action[$id], $mu[$id], $sigma[$id])->aspdl->at(0, 0);
+
+	    $buffers[$id]->store($observation[$id], $action[$id], $reward, $value_t, $logprobability_t);
+	    
+	    if ($done) {
+		my $last_value = $value_t;
+		$buffers[$id]->finish_trajectory($last_value);
+		$num_episodes += 1;
+		$env->reset;
+		$observation[$id] = undef;
+	    }
+	}
+
+	if ($steps[$id] < $steps_per_epoch) {
+	    $observation[$id] = nd->array([[$env->get_state_list]]);
+	    ($mu[$id], $sigma[$id]) = $actor_net->($observation[$id]);
+	    $action[$id] = $actor_net->choose_action($observation[$id]); # maybe choose action using mu, sigma?
+	    $action[$id] = $action[$id]->clip(-1, 1);
+	    $env->set_action_list(($action[$id] * $a_scale)->aspdl->list);
+	    $para_env->step($id);
+	    $finished[$id] = 0;
+	    ++$steps[$id];
+	} else {
+	    $finished[$id] = 1;
 	}
     }
 
-    my ($observation_buffer, $action_buffer, $advantage_buffer, $return_buffer, $logprobability_buffer) = $buffer->get;
+    my $all_finished = 0;
+    while (!$all_finished) {
+	my $id = $para_env->get_task_done_id;
+	$finished[$id] = 1;
+	my $env = $envs[$id];
+
+	if (defined($observation[$id])) {
+	    my $reward = $env->get_reward;
+	    $sum_return += $reward;
+	    $sum_length += 1;
+
+	    my $value_t = $critic_net->($observation[$id])->aspdl->at(0, 0);
+	    my $logprobability_t = $actor_net->log_prob($action[$id], $mu[$id], $sigma[$id])->aspdl->at(0, 0);
+
+	    $buffers[$id]->store($observation[$id], $action[$id], $reward, $value_t, $logprobability_t);
+	    
+	    my $last_value = $value_t;
+	    $buffers[$id]->finish_trajectory($last_value);
+	    $num_episodes += 1;
+	    $env->reset;
+	    $observation[$id] = undef;
+	}
+
+	$all_finished = 1;
+	for (@finished) {
+	    $all_finished = $all_finished && $_;
+	}
+    }
+
+    my (@observation_buffers, @action_buffers, @advantage_buffers, @return_buffers, @logprobability_buffers);
+    for my $id (0 .. $num_threads - 1) {
+	my ($observation_buffer, $action_buffer, $advantage_buffer, $return_buffer, $logprobability_buffer) = $buffers[$id]->get;
+	push @observation_buffers, $observation_buffer;
+	push @action_buffers, $action_buffer;
+	push @advantage_buffers, $advantage_buffer;
+	push @return_buffers, $return_buffer;
+	push @logprobability_buffers, $logprobability_buffer;
+    }
+    my $all_observation_buffer = nd->concat(@observation_buffers, dim => 0);
+    my $all_action_buffer = nd->concat(@action_buffers, dim => 0);
+    my $all_advantage_buffer = nd->concat(@advantage_buffers, dim => 0);
+    my $all_return_buffer = nd->concat(@return_buffers, dim => 0);
+    my $all_logprobability_buffer = nd->concat(@logprobability_buffers, dim => 0);
 
     for (1 .. $train_policy_iterations) {
-	my $kl = train_policy($observation_buffer, $action_buffer, $logprobability_buffer, $advantage_buffer);
+	my $kl = train_policy($all_observation_buffer, $all_action_buffer, $all_logprobability_buffer, $all_advantage_buffer);
 	if ($kl > 1.5 * $target_kl) {
 	    last;
 	}
     }
 
     for (1 .. $train_value_iterations) {
-	train_value_function($observation_buffer, $return_buffer);
+	train_value_function($all_observation_buffer, $all_return_buffer);
     }
 
     print "Epoch: $epoch. Mean Return: ", $sum_return / $num_episodes, " Mean Length: ", $sum_length / $num_episodes, "\n";
