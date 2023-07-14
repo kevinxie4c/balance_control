@@ -16,6 +16,7 @@ class ParallelEnv
 	std::vector<CharacterEnv*> envs;
 
 	ParallelEnv(const char *cfgFilename, size_t num_threads);
+	void reset();
 	size_t get_task_done_id();
 	void step(size_t id);
 	~ParallelEnv();

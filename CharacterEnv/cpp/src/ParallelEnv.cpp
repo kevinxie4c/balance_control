@@ -27,6 +27,18 @@ ParallelEnv::ParallelEnv(const char *cfgFilename, size_t num_threads): stop_all(
     }
 }
 
+void ParallelEnv::reset()
+{
+    task_done.clear();
+    task_todo.clear();
+    for (size_t i = 0; i < num_threads; ++i)
+    {
+	envs[i]->reset();
+	task_done.push_back(i);
+	task_todo.push_back(false);
+    }
+}
+
 // TODO: still need to check whether mult-threading implementation is bullet-proof
 
 size_t ParallelEnv::get_task_done_id()

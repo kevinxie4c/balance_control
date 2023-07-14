@@ -46,14 +46,10 @@ MODULE = CharacterEnv		PACKAGE = CharacterEnvPtr
 
 void
 CharacterEnv::reset()
-CODE:
-    THIS->reset();
 
 
 void
 CharacterEnv::step()
-CODE:
-    THIS->step();
 
 
 double
@@ -201,6 +197,10 @@ OUTPUT:
     RETVAL
 CLEANUP:
     XSRETURN(size_RETVAL);
+
+
+void
+ParallelEnv::reset()
 
 
 size_t
