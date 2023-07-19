@@ -1,7 +1,7 @@
 #/usr/bin/env perl
 use FindBin;
 use Time::HiRes qw(time);
-use blib "$FindBin::Bin/blib";
+use blib "$FindBin::Bin/CharacterEnv/blib";
 use CharacterEnv;
 
 my $tm_total = time;

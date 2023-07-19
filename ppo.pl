@@ -8,16 +8,23 @@ use strict;
 use warnings;
 
 my ($use_gpu, $load_model, $save_model, $play_policy) = (0, undef, "model", 0);
+my $save_interval = 200;
+my $g_sigma = 0;
 my $outdir = "output";
 GetOptions(
     'G|gpu' => \$use_gpu,
     'l|load_model=s'	=> \$load_model,
     's|save_model=s'	=> \$save_model,
     'p|play_policy'	=> \$play_policy,
+    'i|save_interval=i'   => \$save_interval,
 );
 
 mkdir $outdir unless -e $outdir;
-mx->Context->set_current($use_gpu ? mx->gpu : mx->cpu);
+my $current_ctx = $use_gpu ? mx->gpu : mx->cpu;
+AI::MXNet::Context->set_current($current_ctx);
+
+my $test_tensor = nd->zeros([2, 2]);
+print "test tensor: $test_tensor\n";
 
 sub discounted_cumulative_sums {
     my ($x, $discount) = @_;
@@ -103,7 +110,7 @@ use GD;
 use File::Slurp;
 use PDL;
 use FindBin;
-use blib "$FindBin::Bin/blib";
+use blib "$FindBin::Bin/CharacterEnv/blib";
 use CharacterEnv;
 
 my $env = CharacterEnv->new('data/env_config.json');
@@ -153,13 +160,15 @@ package ActorModel {
 		    });
 		$self->dense_base($net);
 		$self->dense_mu(nn->Dense($action_size, in_units => $unit_size, activation => 'tanh'));
-		$self->dense_sigma(nn->Dense($action_size, in_units => $unit_size, activation => 'softrelu'));
+		#$self->dense_sigma(nn->Dense($action_size, in_units => $unit_size, activation => 'softrelu'));
 	    });
     }
 
     method forward($x) {
 	my $y = $self->dense_base->($x);
-	my ($mu, $sigma) = ($self->dense_mu->($y), $self->dense_sigma->($y));
+	#my ($mu, $sigma) = ($self->dense_mu->($y), $self->dense_sigma->($y));
+	my $mu = $self->dense_mu->($y);
+	my $sigma = nd->ones($mu->shape) * $g_sigma;
 	return ($mu, $sigma);
     }
 
@@ -169,10 +178,10 @@ package ActorModel {
     }
 
     method sample($mu, $sigma) {
-	my $eps = nd->random_normal(0, 1, $mu->shape);
+	my $eps = nd->random_normal(0, 1, $mu->shape, ctx => $current_ctx);
 	return $mu + $sigma * $eps;
     }
-    
+
     method log_prob($x, $mu, $sigma) {
 	return nd->sum(-0.5 * log(2.0 * pi) - $sigma->add(1e-8)->log() - ($x - $mu) ** 2 / (2 * $sigma ** 2 + 1e-8), axis => 1);
     }
@@ -189,6 +198,8 @@ my $lam = 0.97;
 my $target_kl = 0.01;
 my $policy_learning_rate = 3e-4;
 my $value_function_learning_rate = 1e-3;
+my $sigma_begin = 0.1;
+my $sigma_end = 0.01;
 my $actor_net = ActorModel->new(sizes => [$unit_size, $unit_size],  activation => 'relu');
 #print $actor_net;
 my $critic_net = mlp([$unit_size, $unit_size, 1], 'relu');
@@ -217,15 +228,15 @@ sub train_policy {
 	    ($mu, $sigma) = $actor_net->($observation_buffer);
 	    my $ratio = nd->exp($actor_net->log_prob($action_buffer, $mu, $sigma) - $logprobability_buffer);
 	    my $min_advantage = nd->where($advantage_buffer > 0,
-	        (1 + $clip_ratio) * $advantage_buffer,
-	        (1 - $clip_ratio) * $advantage_buffer,
+		(1 + $clip_ratio) * $advantage_buffer,
+		(1 - $clip_ratio) * $advantage_buffer,
 	    );
 	    $policy_loss = -nd->mean(nd->broadcast_minimum($ratio * $advantage_buffer, $min_advantage));
 	});
     $policy_loss->backward;
     #print($policy_loss->aspdl);
     $policy_optimizer->step($observation_buffer->shape->[0]);
-    
+
     my $kl = nd->mean($logprobability_buffer - $actor_net->log_prob($action_buffer, $mu, $sigma));
     #$kl = nd->sum($kl);	# Do we need this?
     return $kl;
@@ -251,11 +262,14 @@ my $i_img = 0;
 
 if (defined($save_model)) {
     mkdir $save_model unless -e $save_model;
+} else {
+    die "undefined save_model";
 }
 
 my $interrupt = 0;
 
 $SIG{INT} = sub {
+    print "Receive an INT signal. Wait for the current iteration.\n";
     $interrupt = 1;
 };
 
@@ -284,6 +298,8 @@ if ($play_policy) {
 open my $f_ret, '>', "$outdir/return_length.txt";
 
 for my $epoch (1 .. $epochs) {
+    $g_sigma = $sigma_begin * ($epochs - $epoch + 1) / ($epochs - 1) + $sigma_end * ($epoch - 1) / ($epochs - 1);
+
     my ($sum_return, $sum_length, $num_episodes) = (0, 0, 0);
     my ($episode_return, $episode_length) = (0, 0);
     my $observation = nd->array([[$env->get_state_list]]);
@@ -339,13 +355,16 @@ for my $epoch (1 .. $epochs) {
 	train_value_function($observation_buffer, $return_buffer);
     }
 
-    print "Epoch: $epoch. Mean Return: ", $sum_return / $num_episodes, " Mean Length: ", $sum_length / $num_episodes, "\n";
+    print "Epoch: $epoch. Sigma: $g_sigma. Mean Return: ", $sum_return / $num_episodes, ". Mean Length: ", $sum_length / $num_episodes, "\n";
     print $f_ret $sum_return / $num_episodes, " ", $sum_length / $num_episodes, "\n";
+
+    if ($epoch % $save_interval == 0) {
+	$actor_net->save_parameters(sprintf("$save_model/actor-%06d.par", $epoch));
+	$critic_net->save_parameters(sprintf("$save_model/critic-%06d.par", $epoch));
+    }
 
     last if $interrupt;
 }
 
-if (defined($save_model)) {
-    $actor_net->save_parameters("$save_model/actor.par");
-    $critic_net->save_parameters("$save_model/critic.par");
-}
+$actor_net->save_parameters("$save_model/actor.par");
+$critic_net->save_parameters("$save_model/critic.par");
