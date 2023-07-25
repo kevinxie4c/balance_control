@@ -8,18 +8,22 @@ use strict;
 use warnings;
 
 my ($use_gpu, $load_model, $save_model, $play_policy) = (0, undef, "model", 0);
+my $save_interval = 200;
+my $g_sigma = 0;
 my $outdir = "output";
+my $num_threads = 4;
 GetOptions(
     'G|gpu' => \$use_gpu,
     'l|load_model=s'	=> \$load_model,
     's|save_model=s'	=> \$save_model,
     'p|play_policy'	=> \$play_policy,
+    'i|save_interval=i' => \$save_interval,
+    'n|num_threads=i'   => \$num_threads,
 );
 
 mkdir $outdir unless -e $outdir;
 my $current_ctx = $use_gpu ? mx->gpu : mx->cpu;
-mx->Context->set_current($current_ctx);
-#$AI::MXNet::current_ctx = $current_ctx
+AI::MXNet::Context->set_current($current_ctx);
 
 my $test_tensor = nd->zeros([2, 2]);
 print "test tensor: $test_tensor\n";
@@ -124,7 +128,6 @@ use FindBin;
 use blib "$FindBin::Bin/CharacterEnv/blib";
 use CharacterEnv;
 
-my $num_threads = 4;
 my $para_env = ParallelEnv->new('data/env_config.json', $num_threads);
 my @envs = $para_env->get_env_list;
 my $unit_size = 512;
@@ -173,13 +176,15 @@ package ActorModel {
 		    });
 		$self->dense_base($net);
 		$self->dense_mu(nn->Dense($action_size, in_units => $unit_size, activation => 'tanh'));
-		$self->dense_sigma(nn->Dense($action_size, in_units => $unit_size, activation => 'softrelu'));
+		#$self->dense_sigma(nn->Dense($action_size, in_units => $unit_size, activation => 'softrelu'));
 	    });
     }
 
     method forward($x) {
 	my $y = $self->dense_base->($x);
-	my ($mu, $sigma) = ($self->dense_mu->($y), $self->dense_sigma->($y));
+	#my ($mu, $sigma) = ($self->dense_mu->($y), $self->dense_sigma->($y));
+	my $mu = $self->dense_mu->($y);
+	my $sigma = nd->ones($mu->shape) * $g_sigma;
 	return ($mu, $sigma);
     }
 
@@ -209,6 +214,8 @@ my $lam = 0.97;
 my $target_kl = 0.01;
 my $policy_learning_rate = 3e-4;
 my $value_function_learning_rate = 1e-3;
+my $sigma_begin = 0.1;
+my $sigma_end = 0.01;
 my $actor_net = ActorModel->new(sizes => [$unit_size, $unit_size],  activation => 'relu');
 #print $actor_net;
 my $critic_net = mlp([$unit_size, $unit_size, 1], 'relu');
@@ -272,17 +279,20 @@ for my $env (@envs) {
     $env->reset;
 }
 #my $a_scale = Math::Trig::pi;
-my $a_scale = 0.5;
+my $a_scale = 1;
 
 my $i_img = 0;
 
 if (defined($save_model)) {
     mkdir $save_model unless -e $save_model;
+} else {
+    die "undefined save_model";
 }
 
 my $interrupt = 0;
 
 $SIG{INT} = sub {
+    print "Receive an INT signal. Wait for the current iteration.\n";
     $interrupt = 1;
 };
 
@@ -312,6 +322,7 @@ if ($play_policy) {
 open my $f_ret, '>', "$outdir/return_length.txt";
 
 for my $epoch (1 .. $epochs) {
+    $g_sigma = $sigma_begin * ($epochs - $epoch + 1) / ($epochs - 1) + $sigma_end * ($epoch - 1) / ($epochs - 1);
     $para_env->reset;
     my ($sum_return, $sum_length, $num_episodes) = (0, 0, 0);
     #my ($episode_return, $episode_length) = (0, 0);
@@ -358,7 +369,8 @@ for my $epoch (1 .. $epochs) {
     my @finished = (1) x $num_threads;
     my @steps = (0) x $num_threads;
     my (@observation, @action, @mu, @sigma);
-    for my $t (1 .. $steps_per_epoch * $num_threads) {
+    my $total_steps = 0;
+    while ($total_steps < $steps_per_epoch * $num_threads) {
 	my $id = $para_env->get_task_done_id;
 	my $env = $envs[$id];
 
@@ -391,6 +403,7 @@ for my $epoch (1 .. $epochs) {
 	    $para_env->step($id);
 	    $finished[$id] = 0;
 	    ++$steps[$id];
+	    ++$total_steps;
 	} else {
 	    $finished[$id] = 1;
 	}
@@ -451,13 +464,16 @@ for my $epoch (1 .. $epochs) {
 	train_value_function($all_observation_buffer, $all_return_buffer);
     }
 
-    print "Epoch: $epoch. Mean Return: ", $sum_return / $num_episodes, " Mean Length: ", $sum_length / $num_episodes, "\n";
+    print "Epoch: $epoch. Sigma: $g_sigma. Mean Return: ", $sum_return / $num_episodes, ". Mean Length: ", $sum_length / $num_episodes, "\n";
     print $f_ret $sum_return / $num_episodes, " ", $sum_length / $num_episodes, "\n";
+
+    if ($epoch % $save_interval == 0) {
+	$actor_net->save_parameters(sprintf("$save_model/actor-%06d.par", $epoch));
+	$critic_net->save_parameters(sprintf("$save_model/critic-%06d.par", $epoch));
+    }
 
     last if $interrupt;
 }
 
-if (defined($save_model)) {
-    $actor_net->save_parameters("$save_model/actor.par");
-    $critic_net->save_parameters("$save_model/critic.par");
-}
+$actor_net->save_parameters("$save_model/actor.par");
+$critic_net->save_parameters("$save_model/critic.par");
