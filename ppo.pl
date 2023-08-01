@@ -7,26 +7,42 @@ use Getopt::Long qw(:config no_ignore_case);
 use strict;
 use warnings;
 
-my ($use_gpu, $load_model, $save_model, $play_policy) = (0, undef, "model", 0);
+my $use_gpu = undef;
+my $load_model = undef;
+my $save_model = 'model';
+my $play_policy = 0;
 my $save_interval = 200;
 my $g_sigma = 0;
 my $outdir = "output";
 my $num_threads = 4;
+my $sigma_begin = 0.1;
+my $sigma_end = 0.01;
+my $steps_per_epoch = 200;
+my $num_epochs = 5000;
+my $a_scale = 1;
+
 GetOptions(
-    'G|gpu' => \$use_gpu,
-    'l|load_model=s'	=> \$load_model,
-    's|save_model=s'	=> \$save_model,
-    'p|play_policy'	=> \$play_policy,
-    'i|save_interval=i' => \$save_interval,
-    'n|num_threads=i'   => \$num_threads,
+    'G|gpu:i'             => \$use_gpu,
+    'l|load_model=s'      => \$load_model,
+    's|save_model=s'      => \$save_model,
+    'p|play_policy'       => \$play_policy,
+    'i|save_interval=i'   => \$save_interval,
+    'n|num_threads=i'     => \$num_threads,
+    'B|sigma_begin=f'     => \$sigma_begin,
+    'E|sigma_end=f'       => \$sigma_end,
+    'N|num_epochs=i'      => \$num_epochs,
+    'K|steps_per_epoch=i' => \$steps_per_epoch,
+    'a|a_scale=f'         => \$a_scale,
 );
 
 mkdir $outdir unless -e $outdir;
-my $current_ctx = $use_gpu ? mx->gpu : mx->cpu;
+my $current_ctx = defined($use_gpu) ? mx->gpu($use_gpu) : mx->cpu;
 AI::MXNet::Context->set_current($current_ctx);
 
 my $test_tensor = nd->zeros([2, 2]);
 print "test tensor: $test_tensor\n";
+
+$num_threads = 1 if $play_policy;
 
 sub discounted_cumulative_sums {
     my ($x, $discount) = @_;
@@ -130,7 +146,7 @@ use CharacterEnv;
 
 my $para_env = ParallelEnv->new('data/env_config.json', $num_threads);
 my @envs = $para_env->get_env_list;
-my $unit_size = 512;
+#my $unit_size = 512;
 my $state_size = $envs[0]->get_state_size;
 my $action_size = $envs[0]->get_action_size;
 
@@ -169,14 +185,16 @@ package ActorModel {
 	$activation = 'tanh' unless defined $activation;
 	$self->name_scope(sub {
 		my $net = nn->Sequential;
+		my $prev_size = $state_size;
 		$net->name_scope(sub {
 			for my $size (@$sizes) {
-			    $net->add(nn->Dense($size, activation => $activation));
+			    $net->add(nn->Dense($size, in_units => $prev_size, activation => $activation));
+			    $prev_size = $size;
 			}
 		    });
 		$self->dense_base($net);
-		$self->dense_mu(nn->Dense($action_size, in_units => $unit_size, activation => 'tanh'));
-		#$self->dense_sigma(nn->Dense($action_size, in_units => $unit_size, activation => 'softrelu'));
+		$self->dense_mu(nn->Dense($action_size, in_units => $prev_size, activation => 'tanh'));
+		#$self->dense_sigma(nn->Dense($action_size, in_units => $prev_size, activation => 'softrelu'));
 	    });
     }
 
@@ -204,8 +222,6 @@ package ActorModel {
 }
 
 
-my $steps_per_epoch = 200;
-my $epochs = 5000;
 my $gamma = 0.99;
 my $clip_ratio = 0.2;
 my $train_policy_iterations = 80;
@@ -214,15 +230,15 @@ my $lam = 0.97;
 my $target_kl = 0.01;
 my $policy_learning_rate = 3e-4;
 my $value_function_learning_rate = 1e-3;
-my $sigma_begin = 0.1;
-my $sigma_end = 0.01;
-my $actor_net = ActorModel->new(sizes => [$unit_size, $unit_size],  activation => 'relu');
+my $actor_net = ActorModel->new(sizes => [1024, 512],  activation => 'relu');
 #print $actor_net;
-my $critic_net = mlp([$unit_size, $unit_size, 1], 'relu');
+my $critic_net = mlp([1024, 512, 1], 'relu');
 #print $critic_net;
 if (defined($load_model)) {
     die "Canno find the model files!" unless -d $load_model and -f "$load_model/actor.par" and -f "$load_model/critic.par";
+    print "load actor from $load_model/actor.par\n";
     $actor_net->load_parameters("$load_model/actor.par");
+    print "load critic from $load_model/critic.par\n";
     $critic_net->load_parameters("$load_model/critic.par");
 } else {
     $actor_net->initialize(mx->init->Xavier());
@@ -278,8 +294,6 @@ for (1 .. $num_threads) {
 for my $env (@envs) {
     $env->reset;
 }
-#my $a_scale = Math::Trig::pi;
-my $a_scale = 1;
 
 my $i_img = 0;
 
@@ -299,21 +313,30 @@ $SIG{INT} = sub {
 if ($play_policy) {
     my $env = $envs[0];
     open my $fout, '>', "$outdir/positions.txt";
+    for (1 .. 1) {
+    $env->reset;
     my $observation = nd->array([[$env->get_state_list]]);
     #for my $t (1 .. $steps_per_epoch) {
-    for my $t (1 .. 100) {
+    for my $t (1 .. 30) {
 	print $fout join(' ', $env->get_positions_list), "\n";
+	#print "state: ", $observation->aspdl, "\n";
 	my ($mu, $sigma) = $actor_net->($observation);
 	#my $action = $actor_net->choose_action($observation);
 	my $action = $mu;   # deterministic
 	$action = $action->clip(-1, 1);
+	#print "action: ", $action->aspdl, "\n";
 	$env->set_action_list(($action * $a_scale)->aspdl->list);
+	#$env->set_action_list((0) x $action_size);
 	$env->step;
 	my $reward = $env->get_reward;
+	#print "(", ($env->get_state_list)[0], ") ";
+	print "$reward ";
 	#my $done = $reward < 10;
 	#last if $done;
 	$observation= nd->array([[$env->get_state_list]]);
     }
+    print "end\n";
+}
     exit;
 }
 
@@ -321,8 +344,8 @@ if ($play_policy) {
 #open my $f_pos, '>', "$outdir/position.txt";
 open my $f_ret, '>', "$outdir/return_length.txt";
 
-for my $epoch (1 .. $epochs) {
-    $g_sigma = $sigma_begin * ($epochs - $epoch + 1) / ($epochs - 1) + $sigma_end * ($epoch - 1) / ($epochs - 1);
+for my $epoch (1 .. $num_epochs) {
+    $g_sigma = $sigma_begin * ($num_epochs - $epoch + 1) / ($num_epochs - 1) + $sigma_end * ($epoch - 1) / ($num_epochs - 1);
     $para_env->reset;
     my ($sum_return, $sum_length, $num_episodes) = (0, 0, 0);
     #my ($episode_return, $episode_length) = (0, 0);
