@@ -1,69 +1,69 @@
-pelvis_rot_x
-pelvis_rot_y
-pelvis_rot_z
-pelvis_pos_x
-pelvis_pos_y
-pelvis_pos_z
-lThigh_x
-lThigh_y
-lThigh_z
-lCalf_x
-lCalf_y
-lCalf_z
-lFoot_x
-lFoot_y
-lFoot_z
-lSole_x
-lSole_y
-lSole_z
-rThigh_x
-rThigh_y
-rThigh_z
-rCalf_x
-rCalf_y
-rCalf_z
-rFoot_x
-rFoot_y
-rFoot_z
-rSole_x
-rSole_y
-rSole_z
-abdomen_x
-abdomen_y
-abdomen_z
-chest1_x
-chest1_y
-chest1_z
-chest2_x
-chest2_y
-chest2_z
-neck_x
-neck_y
-neck_z
-head_x
-head_y
-head_z
-lShoulder_x
-lShoulder_y
-lShoulder_z
-lUpperArm_x
-lUpperArm_y
-lUpperArm_z
-lForearm_x
-lForearm_y
-lForearm_z
-lHand_x
-lHand_y
-lHand_z
-rShoulder_x
-rShoulder_y
-rShoulder_z
-rUpperArm_x
-rUpperArm_y
-rUpperArm_z
-rForearm_x
-rForearm_y
-rForearm_z
-rHand_x
-rHand_y
-rHand_z
+0 pelvis_rot_x
+1 pelvis_rot_y
+2 pelvis_rot_z
+3 pelvis_pos_x
+4 pelvis_pos_y
+5 pelvis_pos_z
+6 lThigh_x
+7 lThigh_y
+8 lThigh_z
+9 lCalf_x
+10 lCalf_y
+11 lCalf_z
+12 lFoot_x
+13 lFoot_y
+14 lFoot_z
+15 lSole_x
+16 lSole_y
+17 lSole_z
+18 rThigh_x
+19 rThigh_y
+20 rThigh_z
+21 rCalf_x
+22 rCalf_y
+23 rCalf_z
+24 rFoot_x
+25 rFoot_y
+26 rFoot_z
+27 rSole_x
+28 rSole_y
+29 rSole_z
+30 abdomen_x
+31 abdomen_y
+32 abdomen_z
+33 chest1_x
+34 chest1_y
+35 chest1_z
+36 chest2_x
+37 chest2_y
+38 chest2_z
+39 neck_x
+40 neck_y
+41 neck_z
+42 head_x
+43 head_y
+44 head_z
+45 lShoulder_x
+46 lShoulder_y
+47 lShoulder_z
+48 lUpperArm_x
+49 lUpperArm_y
+50 lUpperArm_z
+51 lForearm_x
+52 lForearm_y
+53 lForearm_z
+54 lHand_x
+55 lHand_y
+56 lHand_z
+57 rShoulder_x
+58 rShoulder_y
+59 rShoulder_z
+60 rUpperArm_x
+61 rUpperArm_y
+62 rUpperArm_z
+63 rForearm_x
+64 rForearm_y
+65 rForearm_z
+66 rHand_x
+67 rHand_y
+68 rHand_z
