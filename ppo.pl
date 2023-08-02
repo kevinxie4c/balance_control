@@ -228,9 +228,9 @@ my $train_policy_iterations = 80;
 my $train_value_iterations = 80;
 my $lam = 0.97;
 my $target_kl = 0.01;
-my $policy_learning_rate = 3e-4;
-my $value_function_learning_rate = 1e-3;
-my $actor_net = ActorModel->new(sizes => [1024, 512],  activation => 'relu');
+my $policy_learning_rate = 3e-5;
+my $value_function_learning_rate = 1e-4;
+my $actor_net = ActorModel->new(sizes => [256, 128],  activation => 'relu');
 #print $actor_net;
 my $critic_net = mlp([1024, 512, 1], 'relu');
 #print $critic_net;
@@ -313,6 +313,7 @@ $SIG{INT} = sub {
 if ($play_policy) {
     my $env = $envs[0];
     open my $fout, '>', "$outdir/positions.txt";
+    open my $f_action, '>', "$outdir/actions.txt";
     for (1 .. 1) {
     $env->reset;
     my $observation = nd->array([[$env->get_state_list]]);
@@ -324,6 +325,7 @@ if ($play_policy) {
 	#my $action = $actor_net->choose_action($observation);
 	my $action = $mu;   # deterministic
 	$action = $action->clip(-1, 1);
+	print $f_action join(' ', $action->aspdl->list), "\n";
 	#print "action: ", $action->aspdl, "\n";
 	$env->set_action_list(($action * $a_scale)->aspdl->list);
 	#$env->set_action_list((0) x $action_size);
@@ -478,7 +480,7 @@ for my $epoch (1 .. $num_epochs) {
 
     for (1 .. $train_policy_iterations) {
 	my $kl = train_policy($all_observation_buffer, $all_action_buffer, $all_logprobability_buffer, $all_advantage_buffer);
-	if ($kl > 1.5 * $target_kl) {
+	if ($kl->aspdl->sclr > 1.5 * $target_kl) {
 	    last;
 	}
     }
