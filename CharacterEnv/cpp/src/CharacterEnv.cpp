@@ -76,7 +76,10 @@ CharacterEnv::CharacterEnv(const char *cfgFilename)
     mkp.diagonal() = kp;
     mkd.diagonal() = kd;
 
-    action = VectorXd(skeleton->getNumDofs());
+    indices = readListFrom<size_t>(json["indices"]);
+    scales = readListFrom<double>(json["scales"]);
+
+    action = VectorXd(indices.size());
     period = (double)positions.size() / mocapFPS;
 
     kin_skeleton = skeleton->cloneSkeleton();
@@ -101,8 +104,16 @@ void CharacterEnv::step()
     frameIdx = (size_t)round(phase * positions.size());
     if (frameIdx >= positions.size())
 	frameIdx -= positions.size();
+
     const VectorXd &target = positions[frameIdx];
-    VectorXd ref = target + action;
+    VectorXd offset = VectorXd::Zero(target.size());
+    for (size_t i = 0; i < action.size(); ++i)
+    {
+	const size_t &idx = indices[i];
+	offset[idx] += action[i] * scales[i];
+    }
+    VectorXd ref = target + offset;
+
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
 	// stable PD
