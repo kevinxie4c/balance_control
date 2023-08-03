@@ -230,9 +230,9 @@ my $lam = 0.97;
 my $target_kl = 0.01;
 my $policy_learning_rate = 3e-5;
 my $value_function_learning_rate = 1e-4;
-my $actor_net = ActorModel->new(sizes => [256, 128],  activation => 'relu');
+my $actor_net = ActorModel->new(sizes => [512, 256],  activation => 'relu');
 #print $actor_net;
-my $critic_net = mlp([1024, 512, 1], 'relu');
+my $critic_net = mlp([512, 256, 1], 'relu');
 #print $critic_net;
 if (defined($load_model)) {
     die "Canno find the model files!" unless -d $load_model and -f "$load_model/actor.par" and -f "$load_model/critic.par";
@@ -271,7 +271,7 @@ sub train_policy {
     
     my $kl = nd->mean($logprobability_buffer - $actor_net->log_prob($action_buffer, $mu, $sigma));
     #$kl = nd->sum($kl);	# Do we need this?
-    return $kl;
+    return ($policy_loss, $kl);
 }
 
 sub train_value_function {
@@ -283,6 +283,7 @@ sub train_value_function {
     $value_loss->backward;
     #print($value_loss->aspdl);
     $value_optimizer->step($return_buffer->shape->[0]);
+    return $value_loss;
 }
 
 #my $buffer = Buffer->new($state_size, $action_size, $steps_per_epoch);
@@ -478,18 +479,20 @@ for my $epoch (1 .. $num_epochs) {
     my $all_return_buffer = nd->concat(@return_buffers, dim => 0);
     my $all_logprobability_buffer = nd->concat(@logprobability_buffers, dim => 0);
 
+    my ($policy_loss, $kl);
     for (1 .. $train_policy_iterations) {
-	my $kl = train_policy($all_observation_buffer, $all_action_buffer, $all_logprobability_buffer, $all_advantage_buffer);
+	($policy_loss, $kl) = train_policy($all_observation_buffer, $all_action_buffer, $all_logprobability_buffer, $all_advantage_buffer);
 	if ($kl->aspdl->sclr > 1.5 * $target_kl) {
 	    last;
 	}
     }
 
+    my $value_loss;
     for (1 .. $train_value_iterations) {
-	train_value_function($all_observation_buffer, $all_return_buffer);
+	$value_loss = train_value_function($all_observation_buffer, $all_return_buffer);
     }
 
-    print "Epoch: $epoch. Sigma: $g_sigma. Mean Return: ", $sum_return / $num_episodes, ". Mean Length: ", $sum_length / $num_episodes, "\n";
+    print "Epoch: $epoch. Sigma: $g_sigma. Mean Return: ", $sum_return / $num_episodes, ". Mean Length: ", $sum_length / $num_episodes, ". Policy Loss: ", $policy_loss->aspdl->sclr, ". Value Loss: ", $value_loss->aspdl->sclr, "\n";
     print $f_ret $sum_return / $num_episodes, " ", $sum_length / $num_episodes, "\n";
 
     if ($epoch % $save_interval == 0) {
