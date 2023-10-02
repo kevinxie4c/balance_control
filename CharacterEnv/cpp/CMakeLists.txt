@@ -2,11 +2,19 @@ project(balance_control)
 cmake_minimum_required(VERSION 3.16)
 
 find_package(Eigen3 REQUIRED)
+find_package(Boost REQUIRED)
+find_package(DART REQUIRED)
+find_package(nlohmann_json REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIRS})
+include_directories(${Boost_INCLUDE_DIRS})
+include_directories(${DART_INCLUDE_DIRS})
+
+message("Boost_INCLUDE_DIRS: ${Boost_INCLUDE_DIRS}")
+message("DART_INCLUDE_DIRS: ${DART_INCLUDE_DIRS}")
 
 message("CCCDLFLAGS: ${CCCDLFLAGS}")
-#set(CMAKE_CXX_FLAGS "-std=c++14 ${CCCDLFLAGS}")
-set(CMAKE_CXX_FLAGS "${CCCDLFLAGS}")
+set(CMAKE_CXX_FLAGS "-std=c++14 ${CCCDLFLAGS}")
+#set(CMAKE_CXX_FLAGS "${CCCDLFLAGS}")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG")
 
