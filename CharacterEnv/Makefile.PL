@@ -1,9 +1,9 @@
-use 5.036000;
+use 5.014000;
 use ExtUtils::MakeMaker;
 use ExtUtils::PkgConfig;
 use FindBin;
 
-my @cflags = ('-Icpp/src');
+my @cflags = ('-std=c++14 -Icpp/src');
 my @libs;
 for my $dep (qw(eigen3 assimp dart)) {
     if (ExtUtils::PkgConfig->exists($dep)) {
@@ -34,7 +34,10 @@ MAKE_LIB
 WriteMakefile(
     NAME              => 'CharacterEnv',
     VERSION_FROM      => 'lib/CharacterEnv.pm', # finds $VERSION, requires EU::MM from perl >= 5.5
-    PREREQ_PM         => {}, # e.g., Module::Name => 1.1
+    CONFIGURE_REQUIRES=> { 'ExtUtils::PkgConfig' => 0 },
+    PREREQ_PM         => {
+	'AI::MXNet' => 0,
+    }, # e.g., Module::Name => 1.1
     ABSTRACT_FROM     => 'lib/CharacterEnv.pm', # retrieve abstract from module
     AUTHOR            => 'Kaixiang Xie <kaixiang.xie@mail.mcgill.ca>',
     #LICENSE           => 'perl',

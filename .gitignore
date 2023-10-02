@@ -43,6 +43,7 @@ inc/
 *~
 *.out
 *.a
+*.bundle
 
 CMakeCache.txt
 CMakeFiles/
