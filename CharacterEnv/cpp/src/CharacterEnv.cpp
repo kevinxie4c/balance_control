@@ -29,12 +29,10 @@ CharacterEnv::CharacterEnv(const char *cfgFilename)
     world->setTimeStep(1.0 / forceRate);
     world->getConstraintSolver()->setCollisionDetector(dart::collision::DARTCollisionDetector::create());
     state = VectorXd(skeleton->getNumBodyNodes() * 12 + 1);
-    cout << "BodyNode:" << endl;
     size_t j = 0;
     for (size_t i = 0; i < skeleton->getNumBodyNodes(); ++i)
     {
 	const BodyNode *bn = skeleton->getBodyNode(i);
-	cout << bn->getName() << endl;
 	for (const string &s: endEffectorNames)
 	{
 	    if (bn->getName().rfind(s) != string::npos)
@@ -44,12 +42,6 @@ CharacterEnv::CharacterEnv(const char *cfgFilename)
 	    }
 	}
     }
-    cout << "Dofs:" << endl;
-    for (const DegreeOfFreedom *dof: skeleton->getDofs())
-	cout << dof->getName() << endl;
-    cout << "endEffectorIndices:" << endl;
-    for (size_t i = 0; i < n_ef; ++i)
-	cout << endEffectorIndices[i] << endl;
     positions = readVectorXdListFrom(json["poses"]);
 
     floor = Skeleton::create("floor");
@@ -241,4 +233,20 @@ double CharacterEnv::cost()
 
     //cout << "cost: " << " " << err_p << " " << err_r << " " << err_e << " " << err_b << endl;
     return w_p * err_p + w_r * err_r + w_e * err_e + w_b * err_b;
+}
+
+void CharacterEnv::print_info()
+{
+    cout << "BodyNode:" << endl;
+    for (size_t i = 0; i < skeleton->getNumBodyNodes(); ++i)
+    {
+	const BodyNode *bn = skeleton->getBodyNode(i);
+	cout << bn->getName() << endl;
+    }
+    cout << "Dofs:" << endl;
+    for (const DegreeOfFreedom *dof: skeleton->getDofs())
+	cout << dof->getName() << endl;
+    cout << "endEffectorIndices:" << endl;
+    for (size_t i = 0; i < n_ef; ++i)
+	cout << endEffectorIndices[i] << endl;
 }

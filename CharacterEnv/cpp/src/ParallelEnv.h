@@ -19,6 +19,7 @@ class ParallelEnv
 	void reset();
 	size_t get_task_done_id();
 	void step(size_t id);
+	void print_task_done();
 	~ParallelEnv();
 
     private:

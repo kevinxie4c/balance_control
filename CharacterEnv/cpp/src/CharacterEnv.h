@@ -15,6 +15,7 @@ class CharacterEnv
 	double getTimeStep();
 	//void setTimeStep(double h);
 	double cost();
+	void print_info();
 
 	dart::simulation::WorldPtr world;
 	dart::dynamics::SkeletonPtr skeleton, kin_skeleton, floor;

@@ -63,10 +63,20 @@ size_t ParallelEnv::get_task_done_id()
 
 void ParallelEnv::step(size_t id)
 {
-    // atomic start?
+    pthread_mutex_lock(&work_locks[id]);
     task_todo[id] = true;
     pthread_cond_signal(&work_conds[id]);
-    // atomic end?
+    pthread_mutex_unlock(&work_locks[id]);
+}
+
+void ParallelEnv::print_task_done()
+{
+    cout << "task_done: ";
+    pthread_mutex_lock(&done_lock);
+    for (auto &i: task_done)
+	cout << i << " ";
+    pthread_mutex_unlock(&done_lock);
+    cout << endl;
 }
 
 void *ParallelEnv::env_step(void *arg)
