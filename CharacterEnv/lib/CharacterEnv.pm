@@ -1,6 +1,6 @@
 package CharacterEnv;
 
-use 5.036000;
+use 5.034000;
 use strict;
 use warnings;
 
