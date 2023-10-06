@@ -49,7 +49,7 @@ size_t ParallelEnv::get_task_done_id()
     //for (size_t i: task_done)
     //    cout << i << " ";
     //cout << endl;
-    if (task_done.size() == 0)
+    while (task_done.size() == 0)   // use "while" here instead of "if" to re-check the condition in case of spurious wakeups
 	pthread_cond_wait(&done_cond, &done_lock);
     //cout << "task_done (c): ";
     //for (size_t i: task_done)
@@ -78,7 +78,7 @@ void *ParallelEnv::env_step(void *arg)
     while (1)
     {
 	pthread_mutex_lock(&env->work_locks[id]);
-	if (!env->task_todo[id])
+	while (!env->task_todo[id]) // use "while" here instead of "if" to re-check the condition in case of spurious wakeups
 	    pthread_cond_wait(&env->work_conds[id], &env->work_locks[id]);
 	pthread_mutex_unlock(&env->work_locks[id]);
 	//cout << "thread #" << id << " running" << endl;
