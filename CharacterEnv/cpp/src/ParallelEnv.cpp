@@ -88,7 +88,7 @@ void *ParallelEnv::env_step(void *arg)
     while (1)
     {
 	pthread_mutex_lock(&env->work_locks[id]);
-	while (!env->task_todo[id]) // use "while" here instead of "if" to re-check the condition in case of spurious wakeups
+	while (!env->task_todo[id] && !env->stop_all) // use "while" here instead of "if" to re-check the condition in case of spurious wakeups
 	    pthread_cond_wait(&env->work_conds[id], &env->work_locks[id]);
 	pthread_mutex_unlock(&env->work_locks[id]);
 	//cout << "thread #" << id << " running" << endl;
