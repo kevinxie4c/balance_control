@@ -2,3 +2,6 @@ CharacterEnv.c
 Makefile
 Makefile.old
 blib
+
+MYMETA.json
+MYMETA.yml
