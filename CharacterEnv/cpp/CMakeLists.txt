@@ -5,7 +5,6 @@ find_package(Eigen3 REQUIRED)
 find_package(Boost REQUIRED)
 find_package(DART REQUIRED)
 find_package(nlohmann_json REQUIRED)
-include_directories(${EIGEN3_INCLUDE_DIRS})
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${DART_INCLUDE_DIRS})
 
@@ -17,4 +16,4 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG")
 
 add_library(CharacterEnv STATIC src/CharacterEnv.cpp src/SimCharacter.cpp src/MathUtil.cpp src/IOUtil.cpp src/ParallelEnv.cpp)
 #target_link_libraries(CharacterEnv stdc++ dart assimp boost_system)
-target_link_libraries(CharacterEnv nlohmann_json::nlohmann_json)
+target_link_libraries(CharacterEnv nlohmann_json::nlohmann_json Eigen3::Eigen)
