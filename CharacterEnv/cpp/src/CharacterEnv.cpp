@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cmath>
+#include <random>
 #include <Eigen/Core>
 #include <nlohmann/json.hpp>
 #include "SimCharacter.h"
@@ -71,10 +72,17 @@ CharacterEnv::CharacterEnv(const char *cfgFilename)
     indices = readListFrom<size_t>(json["indices"]);
     scales = readListFrom<double>(json["scales"]);
 
+    if (json.contains("enableRSI"))
+	enableRSI = json["enableRSI"].get<bool>();
+
     action = VectorXd(indices.size());
     period = (double)positions.size() / mocapFPS;
 
     kin_skeleton = skeleton->cloneSkeleton();
+
+    std::random_device rd;
+    rng = std::mt19937(rd());
+    uni_dist = std::uniform_int_distribution<size_t>(0, positions.size() - 2);
 
     reset();
 }
@@ -82,10 +90,14 @@ CharacterEnv::CharacterEnv(const char *cfgFilename)
 void CharacterEnv::reset()
 {
     world->reset();
-    skeleton->setPositions(positions[0]);
-    VectorXd vel = skeleton->getPositionDifferences(positions[1], positions[0]) * mocapFPS;
+    size_t idx = 0;
+    if (enableRSI)
+	idx = uni_dist(rng);
+    skeleton->setPositions(positions[idx]);
+    VectorXd vel = skeleton->getPositionDifferences(positions[idx + 1], positions[idx]) * mocapFPS;
     skeleton->setVelocities(vel);
-    phase = 0.0;
+    phase = (double)idx / positions.size();
+    world->setTime((double)idx / mocapFPS);
     updateState();
 }
 

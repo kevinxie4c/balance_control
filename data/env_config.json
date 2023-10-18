@@ -7,5 +7,6 @@
     "kp": "data/kp.txt",
     "kd": "data/kd.txt",
     "indices": "data/indices.txt",
-    "scales": "data/scales.txt"
+    "scales": "data/scales.txt",
+    "enableRSI": false
 }

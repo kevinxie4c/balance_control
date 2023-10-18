@@ -75,6 +75,12 @@ OUTPUT:
 
 
 void
+CharacterEnv::enable_RSI(int enable)
+CODE:
+    THIS->enableRSI = (bool)enable;
+
+
+void
 CharacterEnv::print_info()
 
 

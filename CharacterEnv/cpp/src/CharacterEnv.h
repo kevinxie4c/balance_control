@@ -1,6 +1,7 @@
 #ifndef CHARACTER_ENV_H
 #define CHARACTER_ENV_H
 
+#include <random>
 #include <Eigen/Core>
 #include <dart/dart.hpp>
 
@@ -38,6 +39,11 @@ class CharacterEnv
 	size_t frameIdx = 0;
 
 	double w_p = 5, w_r = 3, w_e = 30, w_b = 10;
+
+	bool enableRSI = false;
+
+	std::mt19937 rng;
+	std::uniform_int_distribution<size_t> uni_dist;
 };
 
 #endif
