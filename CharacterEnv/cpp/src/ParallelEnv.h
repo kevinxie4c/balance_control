@@ -30,7 +30,7 @@ class ParallelEnv
 
 	pthread_mutex_t done_lock;
 	std::vector<pthread_cond_t> work_conds;
-	std::vector<pthread_mutex_t> work_locks;
+	pthread_mutex_t work_lock;
 	pthread_cond_t done_cond;
 	std::vector<size_t> ids;
 	std::vector<ParaArg> args;
