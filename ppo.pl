@@ -18,7 +18,7 @@ my $outdir = "output";
 my $num_threads = 4;
 my $sigma_begin = 0.1;
 my $sigma_end = 0.01;
-my $steps_per_thread = 256;
+my $steps_per_itr = 1024;
 my $num_itrs = 5000;
 my $mini_batch_size = 256;
 my $a_scale = 1;
@@ -34,11 +34,11 @@ GetOptions(
     'B|sigma_begin=f'      => \$sigma_begin,
     'E|sigma_end=f'        => \$sigma_end,
     'N|num_itrs=i'         => \$num_itrs,
-    'K|steps_per_thread=i' => \$steps_per_thread,
+    'K|steps_per_itr=i' => \$steps_per_itr,
     'a|a_scale=f'          => \$a_scale,
 );
 
-my $num_train_itrs = $steps_per_thread * $num_threads / $mini_batch_size;
+my $num_train_itrs = $steps_per_itr / $mini_batch_size;
 if (int($num_train_itrs) != $num_train_itrs) {
     warn "please choose a better mini_batch_size";
     $num_train_itrs = int($num_train_itrs);
@@ -124,11 +124,12 @@ package Buffer {
 
     sub get {
 	my $self = shift;
+	my $b = $self->{pointer} - 1;
 	($self->{pointer}, $self->{trajectory_start_index}) = (0, 0);
 	my $advantage_mean = $self->{advantage_buffer}->mean->aspdl->at(0);
 	my $advantage_std = main::nd_std($self->{advantage_buffer})->aspdl->at(0);
 	$self->{advantage_buffer} = ($self->{advantage_buffer} - $advantage_mean) / $advantage_std;
-	return ($self->{observation_buffer}, $self->{action_buffer}, $self->{advantage_buffer}, $self->{return_buffer}, $self->{logprobability_buffer});
+	return ($self->{observation_buffer}->slice([0, $b]), $self->{action_buffer}->slice([0, $b]), $self->{advantage_buffer}->slice([0, $b]), $self->{return_buffer}->slice([0, $b]), $self->{logprobability_buffer}->slice([0, $b]));
     }
 
     #sub concat {
@@ -296,10 +297,10 @@ sub train_value_function {
     return $value_loss;
 }
 
-#my $buffer = Buffer->new($state_size, $action_size, $steps_per_thread);
+#my $buffer = Buffer->new($state_size, $action_size, $steps_per_itr);
 my @buffers;
 for (1 .. $num_threads) {
-    push(@buffers, Buffer->new($state_size, $action_size, $steps_per_thread));
+    push(@buffers, Buffer->new($state_size, $action_size, $steps_per_itr));
 }
 
 for my $env (@envs) {
@@ -328,7 +329,7 @@ if ($play_policy) {
     for (1 .. 1) {
     $env->reset;
     my $observation = mx->nd->array([[$env->get_state_list]]);
-    #for my $t (1 .. $steps_per_thread) {
+    #for my $t (1 .. $steps_per_itr) {
     for my $t (1 .. 30) {
 	print $fout join(' ', $env->get_positions_list), "\n";
 	#print "state: ", $observation->aspdl, "\n";
@@ -364,7 +365,7 @@ for my $itr (1 .. $num_itrs) {
     #my ($episode_return, $episode_length) = (0, 0);
     #my $observation = mx->nd->array([[$env->get_state_list]]);
 
-    #for my $t (1 .. $steps_per_thread) {
+    #for my $t (1 .. $steps_per_itr) {
     #    my ($mu, $sigma) = $actor_net->($observation);
     #    my $action = $actor_net->choose_action($observation);
     #    #$action = mx->nd->array([[0, 0]]); # debug
@@ -389,7 +390,7 @@ for my $itr (1 .. $num_itrs) {
     #    $buffer->store($observation, $action, $reward, $value_t, $logprobability_t);
     #    $observation = $observation_new;
 
-    #    if ($done || $t == $steps_per_thread) {
+    #    if ($done || $t == $steps_per_itr) {
     #        #exit;  # debug
     #        my $last_value = $value_t;
     #        $buffer->finish_trajectory($last_value);
@@ -403,11 +404,11 @@ for my $itr (1 .. $num_itrs) {
     #}
 
     my @finished = (1) x $num_threads;
-    my @steps = (0) x $num_threads;
     my (@observation, @action, @mu, @sigma);
     my $total_steps = 0;
+    my @steps = (0) x $num_threads;
     my $prev_time = time;
-    while ($total_steps < $steps_per_thread * $num_threads) {
+    while ($total_steps < $steps_per_itr) {
 	my $id = $para_env->get_task_done_id;
 	my $env = $envs[$id];
 
@@ -431,20 +432,17 @@ for my $itr (1 .. $num_itrs) {
 	    }
 	}
 
-	if ($steps[$id] < $steps_per_thread) {
-	    $observation[$id] = mx->nd->array([[$env->get_state_list]]);
-	    ($mu[$id], $sigma[$id]) = $actor_net->($observation[$id]);
-	    $action[$id] = $actor_net->choose_action($observation[$id]); # maybe choose action using mu, sigma?
-	    $action[$id] = $action[$id]->clip(-1, 1);
-	    $env->set_action_list(($action[$id] * $a_scale)->aspdl->list);
-	    $para_env->step($id);
-	    $finished[$id] = 0;
-	    ++$steps[$id];
-	    ++$total_steps;
-	} else {
-	    $finished[$id] = 1;
-	}
+	$observation[$id] = mx->nd->array([[$env->get_state_list]]);
+	($mu[$id], $sigma[$id]) = $actor_net->($observation[$id]);
+	$action[$id] = $actor_net->choose_action($observation[$id]); # maybe choose action using mu, sigma?
+	$action[$id] = $action[$id]->clip(-1, 1);
+	$env->set_action_list(($action[$id] * $a_scale)->aspdl->list);
+	$para_env->step($id);
+	$finished[$id] = 0;
+	++$total_steps;
+	++$steps[$id];
     }
+    print "steps: @steps\n";
 
     my $all_finished = 0;
     while (!$all_finished) {
@@ -491,6 +489,7 @@ for my $itr (1 .. $num_itrs) {
     my $all_advantage_buffer = mx->nd->concat(@advantage_buffers, dim => 0);
     my $all_return_buffer = mx->nd->concat(@return_buffers, dim => 0);
     my $all_logprobability_buffer = mx->nd->concat(@logprobability_buffers, dim => 0);
+    die "wrong size" if $all_observation_buffer->shape->[0] != $steps_per_itr;
 
     my $loss_sum = 0;
     my $itrs_sum = 0;
@@ -500,7 +499,7 @@ POLICY_LOOP:
 	for my $i (0 .. $num_train_itrs - 1) {
 	    my $a = $i * $mini_batch_size;
 	    my $b = $a + $mini_batch_size - 1;
-	    $b = $steps_per_thread * $num_threads - 1 if $b >= $steps_per_thread * $num_threads;
+	    $b = $steps_per_itr - 1 if $b >= $steps_per_itr;
 	    ($policy_loss, $kl) = train_policy($all_observation_buffer->slice([$a, $b]), $all_action_buffer->slice([$a, $b]), $all_logprobability_buffer->slice([$a, $b]), $all_advantage_buffer->slice([$a, $b]));
 	    $loss_sum += $policy_loss;
 	    ++$itrs_sum;
@@ -518,7 +517,7 @@ POLICY_LOOP:
 	for my $i (0 .. $num_train_itrs - 1) {
 	    my $a = $i * $mini_batch_size;
 	    my $b = $a + $mini_batch_size - 1;
-	    $b = $steps_per_thread * $num_threads - 1 if $b >= $steps_per_thread * $num_threads;
+	    $b = $steps_per_itr - 1 if $b >= $steps_per_itr;
 	    $value_loss = train_value_function($all_observation_buffer->slice([$a, $b]), $all_return_buffer->slice([$a, $b]));
 	    $loss_sum += $value_loss;
 	    ++$itrs_sum;
