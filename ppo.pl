@@ -4,6 +4,7 @@ use AI::MXNet::Gluon::NN qw(nn);
 use AI::MXNet::Gluon qw(gluon);
 use AI::MXNet::AutoGrad qw(autograd);
 use Getopt::Long qw(:config no_ignore_case);
+use Time::HiRes qw(time);
 use strict;
 use warnings;
 
@@ -157,6 +158,8 @@ my @envs = $para_env->get_env_list;
 #my $unit_size = 512;
 my $state_size = $envs[0]->get_state_size;
 my $action_size = $envs[0]->get_action_size;
+print "state_size: $state_size\n";
+print "action_size: $action_size\n";
 
 sub mlp {
     my ($sizes, $activation) = @_;
@@ -232,11 +235,11 @@ package ActorModel {
 
 my $gamma = 0.99;
 my $clip_ratio = 0.2;
-my $num_epochs = 1;
+my $num_epochs = 5;
 my $lam = 0.97;
 my $target_kl = 0.01;
-my $policy_learning_rate = 5e-6;
-my $value_function_learning_rate = 1e-5;
+my $policy_learning_rate = 5e-5;
+my $value_function_learning_rate = 5e-4;
 my $actor_net = ActorModel->new(sizes => [512, 256],  activation => 'relu');
 #print $actor_net;
 my $critic_net = mlp([512, 256, 1], 'relu');
@@ -403,6 +406,7 @@ for my $itr (1 .. $num_itrs) {
     my @steps = (0) x $num_threads;
     my (@observation, @action, @mu, @sigma);
     my $total_steps = 0;
+    my $prev_time = time;
     while ($total_steps < $steps_per_thread * $num_threads) {
 	my $id = $para_env->get_task_done_id;
 	my $env = $envs[$id];
@@ -471,6 +475,8 @@ for my $itr (1 .. $num_itrs) {
 	}
     }
 
+    my $sim_time = time - $prev_time;
+    $prev_time = time;
     my (@observation_buffers, @action_buffers, @advantage_buffers, @return_buffers, @logprobability_buffers);
     for my $id (0 .. $num_threads - 1) {
 	my ($observation_buffer, $action_buffer, $advantage_buffer, $return_buffer, $logprobability_buffer) = $buffers[$id]->get;
@@ -519,8 +525,9 @@ POLICY_LOOP:
 	}
     }
     $value_loss = $loss_sum / $itrs_sum;
+    my $train_time = time - $prev_time;
 
-    print "Itr: $itr. Sigma: $g_sigma. Mean Return: ", $sum_return / $num_episodes, ". Mean Length: ", $sum_length / $num_episodes, ". Policy Loss: ", $policy_loss->aspdl->sclr, ". Value Loss: ", $value_loss->aspdl->sclr, "\n";
+    print "Itr: $itr. Sigma: $g_sigma. Mean Return: ", $sum_return / $num_episodes, ". Mean Length: ", $sum_length / $num_episodes, ". Policy Loss: ", $policy_loss->aspdl->sclr, ". Value Loss: ", $value_loss->aspdl->sclr, ". Time: $sim_time, $train_time\n";
     print $f_ret $sum_return / $num_episodes, " ", $sum_length / $num_episodes, "\n";
 
     if ($itr % $save_interval == 0) {
