@@ -81,8 +81,8 @@ void ParallelEnv::step(size_t id)
 #ifdef ENABLE_LOG
     fprintf(fh, "step %d\n", (int)id);
 #endif
-    pthread_cond_signal(&work_conds[id]);
     pthread_mutex_unlock(&work_lock);
+    pthread_cond_signal(&work_conds[id]);
 }
 
 void ParallelEnv::print_task_done()
@@ -120,8 +120,8 @@ void *ParallelEnv::env_step(void *arg)
 #ifdef ENABLE_LOG
 	fprintf(fh, "push %d\n", (int)id);
 #endif
-	pthread_cond_signal(&env->done_cond);
 	pthread_mutex_unlock(&env->done_lock);
+	pthread_cond_signal(&env->done_cond);
     }
 
     cout << "thread #" << id << " ends" << endl;
