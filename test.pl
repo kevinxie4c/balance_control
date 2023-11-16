@@ -52,7 +52,7 @@ while (!$all_done) {
     $dones[$id] = 1;
     $all_done = 1;
     for (@dones) {
-	$all_done = $all_done && $_;
+        $all_done = $all_done && $_;
     }
 }
 for my $id (0 .. $#envs) {
