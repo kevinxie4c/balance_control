@@ -51,6 +51,7 @@ WriteMakefile(
     # OBJECT            => '$(O_FILES)', # link all the C files too
     CC                => 'g++',
     LD                => 'g++',
+    OPTIMIZE          => '-O3',
     MYEXTLIB          => 'cpp/libCharacterEnv$(LIB_EXT)',
     depend            => { 'CharacterEnv.o' => 'cpp/libCharacterEnv.a' },
     clean             => { FILES => 'cpp/libCharacterEnv.a cpp/Makefile cpp/CMakeCache.txt cpp/CMakeFiles' },
