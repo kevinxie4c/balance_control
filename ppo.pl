@@ -4,6 +4,8 @@ use AI::MXNet::Gluon::NN qw(nn);
 use AI::MXNet::Gluon qw(gluon);
 use AI::MXNet::AutoGrad qw(autograd);
 use Getopt::Long qw(:config no_ignore_case);
+use Time::HiRes qw(time);
+use List::Util qw(shuffle);
 use strict;
 use warnings;
 
@@ -17,23 +19,31 @@ my $outdir = "output";
 my $num_threads = 4;
 my $sigma_begin = 0.1;
 my $sigma_end = 0.01;
-my $steps_per_epoch = 200;
-my $num_epochs = 5000;
+my $steps_per_itr = 1024;
+my $num_itrs = 5000;
+my $mini_batch_size = 256;
 my $a_scale = 1;
 
 GetOptions(
-    'G|gpu:i'             => \$use_gpu,
-    'l|load_model=s'      => \$load_model,
-    's|save_model=s'      => \$save_model,
-    'p|play_policy'       => \$play_policy,
-    'i|save_interval=i'   => \$save_interval,
-    'n|num_threads=i'     => \$num_threads,
-    'B|sigma_begin=f'     => \$sigma_begin,
-    'E|sigma_end=f'       => \$sigma_end,
-    'N|num_epochs=i'      => \$num_epochs,
-    'K|steps_per_epoch=i' => \$steps_per_epoch,
-    'a|a_scale=f'         => \$a_scale,
+    'G|gpu:i'              => \$use_gpu,
+    'l|load_model=s'       => \$load_model,
+    's|save_model=s'       => \$save_model,
+    'p|play_policy'        => \$play_policy,
+    'i|save_interval=i'    => \$save_interval,
+    'n|num_threads=i'      => \$num_threads,
+    'm|mini_batch_size=i'  => \$mini_batch_size,
+    'B|sigma_begin=f'      => \$sigma_begin,
+    'E|sigma_end=f'        => \$sigma_end,
+    'N|num_itrs=i'         => \$num_itrs,
+    'K|steps_per_itr=i'    => \$steps_per_itr,
+    'a|a_scale=f'          => \$a_scale,
 );
+
+my $num_train_itrs = $steps_per_itr / $mini_batch_size;
+if (int($num_train_itrs) != $num_train_itrs) {
+    warn "please choose a better mini_batch_size";
+    $num_train_itrs = int($num_train_itrs);
+}
 
 mkdir $outdir unless -e $outdir;
 my $current_ctx = defined($use_gpu) ? mx->gpu($use_gpu) : mx->cpu;
@@ -61,6 +71,11 @@ sub nd_std {
     $x = $x - $x->mean;
     $x = $x->abs ** 2;
     $x = $x->mean->sqrt;
+}
+
+sub reorder {
+    my ($nd, $indices) = @_;
+    return mx->nd->array($nd->aspdl->dice_axis(-1, $indices));
 }
 
 # discounted_cumulative_sums test
@@ -115,11 +130,12 @@ package Buffer {
 
     sub get {
 	my $self = shift;
+	my $b = $self->{pointer} - 1;
 	($self->{pointer}, $self->{trajectory_start_index}) = (0, 0);
 	my $advantage_mean = $self->{advantage_buffer}->mean->aspdl->at(0);
 	my $advantage_std = main::nd_std($self->{advantage_buffer})->aspdl->at(0);
 	$self->{advantage_buffer} = ($self->{advantage_buffer} - $advantage_mean) / $advantage_std;
-	return ($self->{observation_buffer}, $self->{action_buffer}, $self->{advantage_buffer}, $self->{return_buffer}, $self->{logprobability_buffer});
+	return ($self->{observation_buffer}->slice([0, $b]), $self->{action_buffer}->slice([0, $b]), $self->{advantage_buffer}->slice([0, $b]), $self->{return_buffer}->slice([0, $b]), $self->{logprobability_buffer}->slice([0, $b]));
     }
 
     #sub concat {
@@ -149,6 +165,8 @@ my @envs = $para_env->get_env_list;
 #my $unit_size = 512;
 my $state_size = $envs[0]->get_state_size;
 my $action_size = $envs[0]->get_action_size;
+print "state_size: $state_size\n";
+print "action_size: $action_size\n";
 
 sub mlp {
     my ($sizes, $activation) = @_;
@@ -193,7 +211,8 @@ package ActorModel {
 			}
 		    });
 		$self->dense_base($net);
-		$self->dense_mu(nn->Dense($action_size, in_units => $prev_size, activation => 'tanh'));
+		#$self->dense_mu(nn->Dense($action_size, in_units => $prev_size, activation => 'tanh'));
+		$self->dense_mu(nn->Dense($action_size, in_units => $prev_size));
 		#$self->dense_sigma(nn->Dense($action_size, in_units => $prev_size, activation => 'softrelu'));
 	    });
     }
@@ -224,12 +243,12 @@ package ActorModel {
 
 my $gamma = 0.99;
 my $clip_ratio = 0.2;
-my $train_policy_iterations = 80;
-my $train_value_iterations = 80;
+my $num_epochs = 3;
 my $lam = 0.97;
 my $target_kl = 0.01;
-my $policy_learning_rate = 3e-4;
-my $value_function_learning_rate = 1e-3;
+my $policy_learning_rate = 1e-3;
+my $value_function_learning_rate = 5e-3;
+my $decay_factor = 0.001;
 my $actor_net = ActorModel->new(sizes => [1024, 512],  activation => 'relu');
 #print $actor_net;
 my $critic_net = mlp([1024, 512, 1], 'relu');
@@ -271,7 +290,7 @@ sub train_policy {
     
     my $kl = mx->nd->mean($logprobability_buffer - $actor_net->log_prob($action_buffer, $mu, $sigma));
     #$kl = nd->sum($kl);	# Do we need this?
-    return $kl;
+    return ($policy_loss, $kl);
 }
 
 sub train_value_function {
@@ -283,12 +302,13 @@ sub train_value_function {
     $value_loss->backward;
     #print($value_loss->aspdl);
     $value_optimizer->step($return_buffer->shape->[0]);
+    return $value_loss;
 }
 
-#my $buffer = Buffer->new($state_size, $action_size, $steps_per_epoch);
+#my $buffer = Buffer->new($state_size, $action_size, $steps_per_itr);
 my @buffers;
 for (1 .. $num_threads) {
-    push(@buffers, Buffer->new($state_size, $action_size, $steps_per_epoch));
+    push(@buffers, Buffer->new($state_size, $action_size, $steps_per_itr));
 }
 
 for my $env (@envs) {
@@ -313,10 +333,11 @@ $SIG{INT} = sub {
 if ($play_policy) {
     my $env = $envs[0];
     open my $fout, '>', "$outdir/positions.txt";
+    open my $f_action, '>', "$outdir/actions.txt";
     for (1 .. 1) {
     $env->reset;
     my $observation = mx->nd->array([[$env->get_state_list]]);
-    #for my $t (1 .. $steps_per_epoch) {
+    #for my $t (1 .. $steps_per_itr) {
     for my $t (1 .. 30) {
 	print $fout join(' ', $env->get_positions_list), "\n";
 	#print "state: ", $observation->aspdl, "\n";
@@ -324,6 +345,7 @@ if ($play_policy) {
 	#my $action = $actor_net->choose_action($observation);
 	my $action = $mu;   # deterministic
 	$action = $action->clip(-1, 1);
+	print $f_action join(' ', $action->aspdl->list), "\n";
 	#print "action: ", $action->aspdl, "\n";
 	$env->set_action_list(($action * $a_scale)->aspdl->list);
 	#$env->set_action_list((0) x $action_size);
@@ -344,14 +366,14 @@ if ($play_policy) {
 #open my $f_pos, '>', "$outdir/position.txt";
 open my $f_ret, '>', "$outdir/return_length.txt";
 
-for my $epoch (1 .. $num_epochs) {
-    $g_sigma = $sigma_begin * ($num_epochs - $epoch + 1) / ($num_epochs - 1) + $sigma_end * ($epoch - 1) / ($num_epochs - 1);
+for my $itr (1 .. $num_itrs) {
+    $g_sigma = $sigma_begin * ($num_itrs - $itr + 1) / ($num_itrs - 1) + $sigma_end * ($itr - 1) / ($num_itrs - 1);
     $para_env->reset;
     my ($sum_return, $sum_length, $num_episodes) = (0, 0, 0);
     #my ($episode_return, $episode_length) = (0, 0);
     #my $observation = mx->nd->array([[$env->get_state_list]]);
 
-    #for my $t (1 .. $steps_per_epoch) {
+    #for my $t (1 .. $steps_per_itr) {
     #    my ($mu, $sigma) = $actor_net->($observation);
     #    my $action = $actor_net->choose_action($observation);
     #    #$action = mx->nd->array([[0, 0]]); # debug
@@ -376,7 +398,7 @@ for my $epoch (1 .. $num_epochs) {
     #    $buffer->store($observation, $action, $reward, $value_t, $logprobability_t);
     #    $observation = $observation_new;
 
-    #    if ($done || $t == $steps_per_epoch) {
+    #    if ($done || $t == $steps_per_itr) {
     #        #exit;  # debug
     #        my $last_value = $value_t;
     #        $buffer->finish_trajectory($last_value);
@@ -390,10 +412,11 @@ for my $epoch (1 .. $num_epochs) {
     #}
 
     my @finished = (1) x $num_threads;
-    my @steps = (0) x $num_threads;
     my (@observation, @action, @mu, @sigma);
     my $total_steps = 0;
-    while ($total_steps < $steps_per_epoch * $num_threads) {
+    my @steps = (0) x $num_threads;
+    my $prev_time = time;
+    while ($total_steps < $steps_per_itr) {
 	my $id = $para_env->get_task_done_id;
 	my $env = $envs[$id];
 
@@ -417,20 +440,17 @@ for my $epoch (1 .. $num_epochs) {
 	    }
 	}
 
-	if ($steps[$id] < $steps_per_epoch) {
-	    $observation[$id] = mx->nd->array([[$env->get_state_list]]);
-	    ($mu[$id], $sigma[$id]) = $actor_net->($observation[$id]);
-	    $action[$id] = $actor_net->choose_action($observation[$id]); # maybe choose action using mu, sigma?
-	    $action[$id] = $action[$id]->clip(-1, 1);
-	    $env->set_action_list(($action[$id] * $a_scale)->aspdl->list);
-	    $para_env->step($id);
-	    $finished[$id] = 0;
-	    ++$steps[$id];
-	    ++$total_steps;
-	} else {
-	    $finished[$id] = 1;
-	}
+	$observation[$id] = mx->nd->array([[$env->get_state_list]]);
+	($mu[$id], $sigma[$id]) = $actor_net->($observation[$id]);
+	$action[$id] = $actor_net->choose_action($observation[$id]); # maybe choose action using mu, sigma?
+	#$action[$id] = $action[$id]->clip(-1, 1);
+	$env->set_action_list(($action[$id]->clip(-1, 1) * $a_scale)->aspdl->list);
+	$para_env->step($id);
+	$finished[$id] = 0;
+	++$total_steps;
+	++$steps[$id];
     }
+    print "steps: @steps\n";
 
     my $all_finished = 0;
     while (!$all_finished) {
@@ -461,6 +481,8 @@ for my $epoch (1 .. $num_epochs) {
 	}
     }
 
+    my $sim_time = time - $prev_time;
+    $prev_time = time;
     my (@observation_buffers, @action_buffers, @advantage_buffers, @return_buffers, @logprobability_buffers);
     for my $id (0 .. $num_threads - 1) {
 	my ($observation_buffer, $action_buffer, $advantage_buffer, $return_buffer, $logprobability_buffer) = $buffers[$id]->get;
@@ -475,24 +497,60 @@ for my $epoch (1 .. $num_epochs) {
     my $all_advantage_buffer = mx->nd->concat(@advantage_buffers, dim => 0);
     my $all_return_buffer = mx->nd->concat(@return_buffers, dim => 0);
     my $all_logprobability_buffer = mx->nd->concat(@logprobability_buffers, dim => 0);
+    die "wrong size" if $all_observation_buffer->shape->[0] != $steps_per_itr;
 
-    for (1 .. $train_policy_iterations) {
-	my $kl = train_policy($all_observation_buffer, $all_action_buffer, $all_logprobability_buffer, $all_advantage_buffer);
-	if ($kl > 1.5 * $target_kl) {
-	    last;
-	}
+    my $indices = pdl(shuffle(0 .. $steps_per_itr-1));
+    $all_observation_buffer = reorder($all_observation_buffer, $indices);
+    $all_action_buffer = reorder($all_action_buffer, $indices);
+    $all_advantage_buffer = reorder($all_advantage_buffer, $indices);
+    $all_return_buffer = reorder($all_return_buffer, $indices);
+    $all_logprobability_buffer = reorder($all_logprobability_buffer, $indices);
+
+    $policy_optimizer->set_learning_rate($policy_learning_rate / (1 + $decay_factor * ($itr - 1)));
+    $value_optimizer->set_learning_rate($value_function_learning_rate / (1 + $decay_factor * ($itr - 1)));
+    #print $policy_optimizer->_optimizer->lr, " ", $value_optimizer->_optimizer->lr, "\n";
+
+    my $loss_sum = 0;
+    my $itrs_sum = 0;
+    my ($policy_loss, $kl);
+POLICY_LOOP:
+    for my $epoch (1 .. $num_epochs) {
+        for my $i (0 .. $num_train_itrs - 1) {
+            my $a = $i * $mini_batch_size;
+            my $b = $a + $mini_batch_size - 1;
+            $b = $steps_per_itr - 1 if $b >= $steps_per_itr;
+            ($policy_loss, $kl) = train_policy($all_observation_buffer->slice([$a, $b]), $all_action_buffer->slice([$a, $b]), $all_logprobability_buffer->slice([$a, $b]), $all_advantage_buffer->slice([$a, $b]));
+            $loss_sum += $policy_loss;
+            ++$itrs_sum;
+            if ($kl->aspdl->sclr > 1.5 * $target_kl) {
+                last POLICY_LOOP;
+            }
+        }
     }
+    $policy_loss = $loss_sum / $itrs_sum;
 
-    for (1 .. $train_value_iterations) {
-	train_value_function($all_observation_buffer, $all_return_buffer);
+    $loss_sum = 0;
+    $itrs_sum = 0;
+    my $value_loss;
+    for my $epoch (1 .. $num_epochs) {
+        for my $i (0 .. $num_train_itrs - 1) {
+            my $a = $i * $mini_batch_size;
+            my $b = $a + $mini_batch_size - 1;
+            $b = $steps_per_itr - 1 if $b >= $steps_per_itr;
+            $value_loss = train_value_function($all_observation_buffer->slice([$a, $b]), $all_return_buffer->slice([$a, $b]));
+            $loss_sum += $value_loss;
+            ++$itrs_sum;
+        }
     }
+    $value_loss = $loss_sum / $itrs_sum;
+    my $train_time = time - $prev_time;
 
-    print "Epoch: $epoch. Sigma: $g_sigma. Mean Return: ", $sum_return / $num_episodes, ". Mean Length: ", $sum_length / $num_episodes, "\n";
+    print "Itr: $itr. Sigma: $g_sigma. Mean Return: ", $sum_return / $num_episodes, ". Mean Length: ", $sum_length / $num_episodes, ". Policy Loss: ", $policy_loss->aspdl->sclr, ". Value Loss: ", $value_loss->aspdl->sclr, ". Time: $sim_time, $train_time\n";
     print $f_ret $sum_return / $num_episodes, " ", $sum_length / $num_episodes, "\n";
 
-    if ($epoch % $save_interval == 0) {
-	$actor_net->save_parameters(sprintf("$save_model/actor-%06d.par", $epoch));
-	$critic_net->save_parameters(sprintf("$save_model/critic-%06d.par", $epoch));
+    if ($itr % $save_interval == 0) {
+	$actor_net->save_parameters(sprintf("$save_model/actor-%06d.par", $itr));
+	$critic_net->save_parameters(sprintf("$save_model/critic-%06d.par", $itr));
     }
 
     last if $interrupt;

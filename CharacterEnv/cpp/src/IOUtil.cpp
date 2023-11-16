@@ -1,22 +1,9 @@
 #include <cstring>
 #include "IOUtil.h"
 
-std::vector<double> readListFrom(const std::string &filename)
-{
-    std::ifstream input(filename);
-    if (input.fail())
-	throw std::ios_base::failure("cannot open " + filename);
-    std::vector<double> list;
-    double d;
-    while (input >> d)
-	list.push_back(d);
-    input.close();
-    return list;
-}
-
 Eigen::VectorXd readVectorXdFrom(const std::string &filename)
 {
-    std::vector<double> list = readListFrom(filename);
+    std::vector<double> list = readListFrom<double>(filename);
     Eigen::VectorXd v(list.size());
     memcpy(v.data(), list.data(), list.size() * sizeof(double));
     return v;

@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cmath>
+#include <random>
 #include <Eigen/Core>
 #include <nlohmann/json.hpp>
 #include "SimCharacter.h"
@@ -29,12 +30,10 @@ CharacterEnv::CharacterEnv(const char *cfgFilename)
     world->setTimeStep(1.0 / forceRate);
     world->getConstraintSolver()->setCollisionDetector(dart::collision::DARTCollisionDetector::create());
     state = VectorXd(skeleton->getNumBodyNodes() * 12 + 1);
-    cout << "BodyNode:" << endl;
     size_t j = 0;
     for (size_t i = 0; i < skeleton->getNumBodyNodes(); ++i)
     {
 	const BodyNode *bn = skeleton->getBodyNode(i);
-	cout << bn->getName() << endl;
 	for (const string &s: endEffectorNames)
 	{
 	    if (bn->getName().rfind(s) != string::npos)
@@ -44,12 +43,6 @@ CharacterEnv::CharacterEnv(const char *cfgFilename)
 	    }
 	}
     }
-    cout << "Dofs:" << endl;
-    for (const DegreeOfFreedom *dof: skeleton->getDofs())
-	cout << dof->getName() << endl;
-    cout << "endEffectorIndices:" << endl;
-    for (size_t i = 0; i < n_ef; ++i)
-	cout << endEffectorIndices[i] << endl;
     positions = readVectorXdListFrom(json["poses"]);
 
     floor = Skeleton::create("floor");
@@ -76,10 +69,20 @@ CharacterEnv::CharacterEnv(const char *cfgFilename)
     mkp.diagonal() = kp;
     mkd.diagonal() = kd;
 
-    action = VectorXd(skeleton->getNumDofs());
+    indices = readListFrom<size_t>(json["indices"]);
+    scales = readListFrom<double>(json["scales"]);
+
+    if (json.contains("enableRSI"))
+	enableRSI = json["enableRSI"].get<bool>();
+
+    action = VectorXd(indices.size());
     period = (double)positions.size() / mocapFPS;
 
     kin_skeleton = skeleton->cloneSkeleton();
+
+    std::random_device rd;
+    rng = std::mt19937(rd());
+    uni_dist = std::uniform_int_distribution<size_t>(0, positions.size() - 2);
 
     reset();
 }
@@ -87,10 +90,14 @@ CharacterEnv::CharacterEnv(const char *cfgFilename)
 void CharacterEnv::reset()
 {
     world->reset();
-    skeleton->setPositions(positions[0]);
-    VectorXd vel = skeleton->getPositionDifferences(positions[1], positions[0]) * mocapFPS;
+    size_t idx = 0;
+    if (enableRSI)
+	idx = uni_dist(rng);
+    skeleton->setPositions(positions[idx]);
+    VectorXd vel = skeleton->getPositionDifferences(positions[idx + 1], positions[idx]) * mocapFPS;
     skeleton->setVelocities(vel);
-    phase = 0.0;
+    phase = (double)idx / positions.size();
+    world->setTime((double)idx / mocapFPS);
     updateState();
 }
 
@@ -101,8 +108,16 @@ void CharacterEnv::step()
     frameIdx = (size_t)round(phase * positions.size());
     if (frameIdx >= positions.size())
 	frameIdx -= positions.size();
+
     const VectorXd &target = positions[frameIdx];
-    VectorXd ref = target + action;
+    VectorXd offset = VectorXd::Zero(target.size());
+    for (size_t i = 0; i < action.size(); ++i)
+    {
+	const size_t &idx = indices[i];
+	offset[idx] += action[i] * scales[i];
+    }
+    VectorXd ref = target + offset;
+
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
 	// stable PD
@@ -230,4 +245,20 @@ double CharacterEnv::cost()
 
     //cout << "cost: " << " " << err_p << " " << err_r << " " << err_e << " " << err_b << endl;
     return w_p * err_p + w_r * err_r + w_e * err_e + w_b * err_b;
+}
+
+void CharacterEnv::print_info()
+{
+    cout << "BodyNode:" << endl;
+    for (size_t i = 0; i < skeleton->getNumBodyNodes(); ++i)
+    {
+	const BodyNode *bn = skeleton->getBodyNode(i);
+	cout << bn->getName() << endl;
+    }
+    cout << "Dofs:" << endl;
+    for (const DegreeOfFreedom *dof: skeleton->getDofs())
+	cout << dof->getName() << endl;
+    cout << "endEffectorIndices:" << endl;
+    for (size_t i = 0; i < n_ef; ++i)
+	cout << endEffectorIndices[i] << endl;
 }

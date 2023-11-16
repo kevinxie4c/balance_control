@@ -30,7 +30,7 @@ $(MYEXTLIB): cpp/Makefile cpp/src/*.h cpp/src/*.cpp
 	cd cpp && $(MAKE)
 
 cpp/Makefile: cpp/CMakeLists.txt
-	cd cpp && cmake -DCMAKE_CXX_STANDARD=14 -DCMAKE_CXX_FLAGS=$(CCCDLFLAGS) -DCMAKE_BUILD_TYPE=debug .
+	cd cpp && cmake -DCMAKE_CXX_STANDARD=14 -DCMAKE_CXX_FLAGS=$(CCCDLFLAGS) -DCMAKE_BUILD_TYPE=release .
 
 cleancpp: 
 	cd cpp && $(Make) clean

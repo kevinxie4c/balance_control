@@ -75,6 +75,16 @@ OUTPUT:
 
 
 void
+CharacterEnv::enable_RSI(int enable)
+CODE:
+    THIS->enableRSI = (bool)enable;
+
+
+void
+CharacterEnv::print_info()
+
+
+void
 CharacterEnv::set_action_list(doubleArray * array, ...)
 CODE:
     if (ix_array == THIS->action.size())
@@ -209,3 +219,7 @@ ParallelEnv::get_task_done_id()
 
 void
 ParallelEnv::step(size_t id)
+
+
+void
+ParallelEnv::print_task_done()
