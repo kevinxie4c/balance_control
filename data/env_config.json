@@ -6,6 +6,10 @@
     "restitution_coeff": 0.0,
     "kp": "data/kp.txt",
     "kd": "data/kd.txt",
+    "position_lower": "data/position_lower.txt",
+    "position_upper": "data/position_upper.txt",
+    "force_lower": "data/force_lower.txt",
+    "force_upper": "data/force_upper.txt",
     "indices": "data/indices.txt",
     "scales": "data/scales.txt",
     "enableRSI": false

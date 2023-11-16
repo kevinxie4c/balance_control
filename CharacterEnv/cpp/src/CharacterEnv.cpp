@@ -14,6 +14,8 @@ using namespace dart::dynamics;
 
 constexpr size_t n_ef = 4;
 
+std::vector<size_t> ind{ 0, 1, 2, 3, 5, 6, 7, 11, 15, 16, 19, 20 };
+
 CharacterEnv::CharacterEnv(const char *cfgFilename)
 {
     ifstream input(cfgFilename);
@@ -29,7 +31,8 @@ CharacterEnv::CharacterEnv(const char *cfgFilename)
     world->addSkeleton(skeleton);
     world->setTimeStep(1.0 / forceRate);
     world->getConstraintSolver()->setCollisionDetector(dart::collision::DARTCollisionDetector::create());
-    state = VectorXd(skeleton->getNumBodyNodes() * 12 + 1);
+    //state = VectorXd(skeleton->getNumBodyNodes() * 12 + 1);
+    state = VectorXd(ind.size() * 12 + 1);
     size_t j = 0;
     for (size_t i = 0; i < skeleton->getNumBodyNodes(); ++i)
     {
@@ -68,6 +71,11 @@ CharacterEnv::CharacterEnv(const char *cfgFilename)
     mkd = MatrixXd::Zero(kd.size(), kd.size());
     mkp.diagonal() = kp;
     mkd.diagonal() = kd;
+
+    skeleton->setPositionLowerLimits(readVectorXdFrom(json["position_lower"]));
+    skeleton->setPositionUpperLimits(readVectorXdFrom(json["position_upper"]));
+    skeleton->setForceLowerLimits(readVectorXdFrom(json["force_lower"]));
+    skeleton->setForceUpperLimits(readVectorXdFrom(json["force_upper"]));
 
     indices = readListFrom<size_t>(json["indices"]);
     scales = readListFrom<double>(json["scales"]);
@@ -150,7 +158,8 @@ void CharacterEnv::updateState()
     VectorXd dq = skeleton->getVelocities();
     double intPart;
     phase = modf(getTime() / period, &intPart);
-    VectorXd s(skeleton->getNumBodyNodes() * 12);
+    //VectorXd s(skeleton->getNumBodyNodes() * 12);
+    VectorXd s(ind.size() * 12);
     const BodyNode *root = skeleton->getRootBodyNode();
     Isometry3d T = root->getTransform();
     Vector3d trans, rot;
@@ -159,9 +168,11 @@ void CharacterEnv::updateState()
     s.segment(3, 3) = rot;
     s.segment(6, 3) = root->getLinearVelocity();
     s.segment(9, 3) = root->getAngularVelocity();
-    for (size_t i = 1; i < skeleton->getNumBodyNodes(); ++i)
+    //for (size_t i = 1; i < skeleton->getNumBodyNodes(); ++i)
+    for (size_t i = 1; i < ind.size(); ++i)
     {
-	const BodyNode *bn = skeleton->getBodyNode(i);
+	//const BodyNode *bn = skeleton->getBodyNode(i);
+	const BodyNode *bn = skeleton->getBodyNode(ind[i]);
 	T = bn->getTransform(root, root);
 	setTransNRot(T, trans, rot);
         s.segment(i * 12, 3) = trans;

@@ -1,22 +1,22 @@
-pelvis
-lThigh
-lCalf
-lFoot
-lSole
-rThigh
-rCalf
-rFoot
-rSole
-abdomen
-chest1
-chest2
-neck
-head
-lShoulder
-lUpperArm
-lForearm
-lHand
-rShoulder
-rUpperArm
-rForearm
-rHand
+0	pelvis
+1	lThigh
+2	lCalf
+3	lFoot
+4	lSole
+5	rThigh
+6	rCalf
+7	rFoot
+8	rSole
+9	abdomen
+10	chest1
+11	chest2
+12	neck
+13	head
+14	lShoulder
+15	lUpperArm
+16	lForearm
+17	lHand
+18	rShoulder
+19	rUpperArm
+20	rForearm
+21	rHand

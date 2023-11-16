@@ -243,14 +243,19 @@ package ActorModel {
 
 my $gamma = 0.99;
 my $clip_ratio = 0.2;
-my $num_epochs = 3;
+#my $num_epochs = 5;
+my $num_epochs = 1;
 my $lam = 0.97;
 my $target_kl = 0.01;
-my $policy_learning_rate = 1e-3;
-my $value_function_learning_rate = 5e-3;
+#my $policy_learning_rate = 5e-4;
+#my $value_function_learning_rate = 1e-3;
+my $policy_learning_rate = 5e-4;
+my $value_function_learning_rate = 1e-3;
 my $decay_factor = 0.001;
+#my $actor_net = ActorModel->new(sizes => [512, 256],  activation => 'relu');
 my $actor_net = ActorModel->new(sizes => [1024, 512],  activation => 'relu');
 #print $actor_net;
+#my $critic_net = mlp([512, 256, 1], 'relu');
 my $critic_net = mlp([1024, 512, 1], 'relu');
 #print $critic_net;
 if (defined($load_model)) {
