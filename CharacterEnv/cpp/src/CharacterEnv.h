@@ -30,7 +30,6 @@ class CharacterEnv
 	size_t endEffectorIndices[4];
 	std::vector<std::string> endEffectorNames{"Foot", "foot", "Hand", "hand"};
 	std::vector<Eigen::VectorXd> positions;
-	std::vector<size_t> indices;
 	std::vector<double> scales;
 
 	int mocapFPS = 120;

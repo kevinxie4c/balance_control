@@ -6,7 +6,6 @@
     "restitution_coeff": 0.0,
     "kp": "data/kp.txt",
     "kd": "data/kd.txt",
-    "indices": "data/indices.txt",
     "scales": "data/scales.txt",
     "enableRSI": false
 }

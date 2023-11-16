@@ -69,13 +69,12 @@ CharacterEnv::CharacterEnv(const char *cfgFilename)
     mkp.diagonal() = kp;
     mkd.diagonal() = kd;
 
-    indices = readListFrom<size_t>(json["indices"]);
     scales = readListFrom<double>(json["scales"]);
 
     if (json.contains("enableRSI"))
 	enableRSI = json["enableRSI"].get<bool>();
 
-    action = VectorXd(indices.size());
+    action = VectorXd(skeleton->getNumDofs());
     period = (double)positions.size() / mocapFPS;
 
     kin_skeleton = skeleton->cloneSkeleton();
@@ -113,8 +112,7 @@ void CharacterEnv::step()
     VectorXd offset = VectorXd::Zero(target.size());
     for (size_t i = 0; i < action.size(); ++i)
     {
-	const size_t &idx = indices[i];
-	offset[idx] += action[i] * scales[i];
+	offset[i] += action[i] * scales[i];
     }
     VectorXd ref = target + offset;
 
