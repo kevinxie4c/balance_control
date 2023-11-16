@@ -3,6 +3,14 @@ use ExtUtils::MakeMaker;
 use ExtUtils::PkgConfig;
 use FindBin;
 
+# TODO:
+#   fix
+#	* dart.pc depends on eigen (should be eigen3)
+#	* dart.pc depends on boost (not found)
+#	* "incorrect" includedir in dart.pc: .../include or .../include/dart ?
+#	* dart-12 uses C++14 but FCL-5 uses C++11
+#	* maybe use cmake instead of pkg-config?
+
 my @cflags = ('-std=c++14 -Icpp/src');
 my @libs;
 for my $dep (qw(eigen3 assimp dart)) {
