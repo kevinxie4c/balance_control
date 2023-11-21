@@ -5,10 +5,10 @@
 #include <Eigen/Core>
 #include <dart/dart.hpp>
 
-class CharacterEnv
+class MimicEnv
 {
     public:
-        CharacterEnv(const char *cfgFilename);
+        MimicEnv(const char *cfgFilename);
         void reset();
         void step();
         void updateState();
@@ -27,7 +27,6 @@ class CharacterEnv
         double period = 0.0;
         double phase = 0.0;
         double reward = 0.0;
-        bool done = false;
         size_t endEffectorIndices[4];
         std::vector<std::string> endEffectorNames{"Foot", "foot", "Hand", "hand"};
         std::vector<Eigen::VectorXd> positions;

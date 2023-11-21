@@ -4,7 +4,7 @@
 #include <Eigen/Core>
 #include <nlohmann/json.hpp>
 #include "SimCharacter.h"
-#include "CharacterEnv.h"
+#include "MimicEnv.h"
 #include "MathUtil.h"
 #include "IOUtil.h"
 
@@ -14,7 +14,7 @@ using namespace dart::dynamics;
 
 constexpr size_t n_ef = 4;
 
-CharacterEnv::CharacterEnv(const char *cfgFilename)
+MimicEnv::MimicEnv(const char *cfgFilename)
 {
     ifstream input(cfgFilename);
     if (input.fail())
@@ -86,7 +86,7 @@ CharacterEnv::CharacterEnv(const char *cfgFilename)
     reset();
 }
 
-void CharacterEnv::reset()
+void MimicEnv::reset()
 {
     world->reset();
     size_t idx = 0;
@@ -100,7 +100,7 @@ void CharacterEnv::reset()
     updateState();
 }
 
-void CharacterEnv::step()
+void MimicEnv::step()
 {
     double intPart;
     phase = modf(getTime() / period, &intPart);
@@ -142,7 +142,7 @@ void CharacterEnv::step()
     updateState();
 }
 
-void CharacterEnv::updateState()
+void MimicEnv::updateState()
 {
     VectorXd q = skeleton->getPositions();
     VectorXd dq = skeleton->getVelocities();
@@ -171,24 +171,24 @@ void CharacterEnv::updateState()
     reward = 20 - cost();
 }
 
-double CharacterEnv::getTime()
+double MimicEnv::getTime()
 {
     return world->getTime();
 }
 
-double  CharacterEnv::getTimeStep()
+double  MimicEnv::getTimeStep()
 {
     return world->getTimeStep();
 }
 
 /*
-void CharacterEnv::setTimeStep(double h)
+void MimicEnv::setTimeStep(double h)
 {
     world->setTimeStep(h);
 }
 */
 
-double CharacterEnv::cost()
+double MimicEnv::cost()
 {
     kin_skeleton->setPositions(positions[frameIdx]);
     const vector<Joint*> &joints = skeleton->getJoints();
@@ -245,7 +245,7 @@ double CharacterEnv::cost()
     return w_p * err_p + w_r * err_r + w_e * err_e + w_b * err_b;
 }
 
-void CharacterEnv::print_info()
+void MimicEnv::print_info()
 {
     cout << "BodyNode:" << endl;
     for (size_t i = 0; i < skeleton->getNumBodyNodes(); ++i)
