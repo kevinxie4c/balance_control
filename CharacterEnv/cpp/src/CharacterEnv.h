@@ -9,6 +9,7 @@ class CharacterEnv
 {
     public:
         static CharacterEnv* makeEnv(const char *cfgFilename);
+        virtual ~CharacterEnv() = default;
         virtual void reset() = 0;
         virtual void step() = 0;
         double getTime();
