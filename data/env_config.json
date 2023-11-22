@@ -1,4 +1,5 @@
 {
+    "env": "mimic",
     "character": "data/humanoid.json",
     "poses": "data/positions.txt",
     "floor_z": 0.031,

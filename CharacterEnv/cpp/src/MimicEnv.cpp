@@ -21,6 +21,7 @@ MimicEnv::MimicEnv(const char *cfgFilename)
         throw ios_base::failure(string("cannot open ") + cfgFilename);
     nlohmann::json json;
     input >> json;
+    input.close();
 
     SimCharacter character(json["character"]);
     skeleton = character.skeleton;
@@ -170,23 +171,6 @@ void MimicEnv::updateState()
     state << s, phase;
     reward = 20 - cost();
 }
-
-double MimicEnv::getTime()
-{
-    return world->getTime();
-}
-
-double  MimicEnv::getTimeStep()
-{
-    return world->getTimeStep();
-}
-
-/*
-void MimicEnv::setTimeStep(double h)
-{
-    world->setTimeStep(h);
-}
-*/
 
 double MimicEnv::cost()
 {

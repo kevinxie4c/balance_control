@@ -1,32 +1,25 @@
-#ifndef CHARACTER_ENV_H
-#define CHARACTER_ENV_H
+#ifndef MIMIC_ENV_H
+#define MIMIC_ENV_H
 
 #include <random>
 #include <Eigen/Core>
 #include <dart/dart.hpp>
+#include "CharacterEnv.h"
 
-class MimicEnv
+class MimicEnv: public CharacterEnv
 {
     public:
         MimicEnv(const char *cfgFilename);
-        void reset();
-        void step();
+        void reset() override;
+        void step() override;
         void updateState();
-        double getTime();
-        double getTimeStep();
         //void setTimeStep(double h);
         double cost();
-        void print_info();
+        void print_info() override;
 
-        dart::simulation::WorldPtr world;
-        dart::dynamics::SkeletonPtr skeleton, kin_skeleton, floor;
+        dart::dynamics::SkeletonPtr kin_skeleton, floor;
         Eigen::VectorXd kp, kd;
-        Eigen::VectorXd action;
-        Eigen::VectorXd state;
         Eigen::MatrixXd mkp, mkd;
-        double period = 0.0;
-        double phase = 0.0;
-        double reward = 0.0;
         size_t endEffectorIndices[4];
         std::vector<std::string> endEffectorNames{"Foot", "foot", "Hand", "hand"};
         std::vector<Eigen::VectorXd> positions;

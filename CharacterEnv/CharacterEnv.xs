@@ -33,7 +33,7 @@ MODULE = CharacterEnv		PACKAGE = CharacterEnv
 CharacterEnv *
 CharacterEnv::new(const char *cfgFilename)
 CODE:
-    RETVAL = new CharacterEnv(cfgFilename);
+    RETVAL = CharacterEnv::makeEnv(cfgFilename);
 OUTPUT:
     RETVAL
 

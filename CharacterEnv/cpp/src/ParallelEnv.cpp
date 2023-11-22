@@ -25,7 +25,7 @@ ParallelEnv::ParallelEnv(const char *cfgFilename, size_t num_threads): stop_all(
     {
 	pthread_cond_init(&work_conds[i], NULL);
 	//envs.push_back(make_shared<CharacterEnv>(cfgFilename));
-	envs.push_back(new CharacterEnv(cfgFilename));
+	envs.push_back(CharacterEnv::makeEnv(cfgFilename));
 	args.push_back({ this, i });
 	task_done.push_back(i);
 	task_todo.push_back(false);

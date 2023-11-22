@@ -8,42 +8,24 @@
 class CharacterEnv
 {
     public:
-        CharacterEnv(const char *cfgFilename);
-        void reset();
-        void step();
-        void updateState();
+        static CharacterEnv* makeEnv(const char *cfgFilename);
+        virtual void reset() = 0;
+        virtual void step() = 0;
         double getTime();
         double getTimeStep();
         //void setTimeStep(double h);
-        double cost();
-        void print_info();
+        virtual void print_info();
 
         dart::simulation::WorldPtr world;
-        dart::dynamics::SkeletonPtr skeleton, kin_skeleton, floor;
-        Eigen::VectorXd kp, kd;
+        dart::dynamics::SkeletonPtr skeleton;
+
         Eigen::VectorXd action;
         Eigen::VectorXd state;
-        Eigen::MatrixXd mkp, mkd;
         double period = 0.0;
         double phase = 0.0;
         double reward = 0.0;
         bool done = false;
-        size_t endEffectorIndices[4];
-        std::vector<std::string> endEffectorNames{"Foot", "foot", "Hand", "hand"};
-        std::vector<Eigen::VectorXd> positions;
-        std::vector<double> scales;
-
-        int mocapFPS = 120;
-        int actionRate = 30;
-        int forceRate = 600;
-        size_t frameIdx = 0;
-
-        double w_p = 5, w_r = 3, w_e = 30, w_b = 10;
-
         bool enableRSI = false;
-
-        std::mt19937 rng;
-        std::uniform_int_distribution<size_t> uni_dist;
 };
 
 #endif
