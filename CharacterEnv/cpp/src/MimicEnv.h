@@ -23,7 +23,7 @@ class MimicEnv: public CharacterEnv
         size_t endEffectorIndices[4];
         std::vector<std::string> endEffectorNames{"Foot", "foot", "Hand", "hand"};
         std::vector<Eigen::VectorXd> positions;
-        std::vector<double> scales;
+        Eigen::VectorXd scales;
 
         int mocapFPS = 120;
         int actionRate = 30;
@@ -31,8 +31,6 @@ class MimicEnv: public CharacterEnv
         size_t frameIdx = 0;
 
         double w_p = 5, w_r = 3, w_e = 30, w_b = 10;
-
-        bool enableRSI = false;
 
         std::mt19937 rng;
         std::uniform_int_distribution<size_t> uni_dist;

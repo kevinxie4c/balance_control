@@ -70,7 +70,7 @@ MimicEnv::MimicEnv(const char *cfgFilename)
     mkp.diagonal() = kp;
     mkd.diagonal() = kd;
 
-    scales = readListFrom<double>(json["scales"]);
+    scales = readVectorXdFrom(json["scales"]);
 
     if (json.contains("enableRSI"))
         enableRSI = json["enableRSI"].get<bool>();
@@ -110,12 +110,7 @@ void MimicEnv::step()
         frameIdx -= positions.size();
 
     const VectorXd &target = positions[frameIdx];
-    VectorXd offset = VectorXd::Zero(target.size());
-    for (size_t i = 0; i < action.size(); ++i)
-    {
-        offset[i] += action[i] * scales[i];
-    }
-    VectorXd ref = target + offset;
+    VectorXd ref = target + (action.array() * scales.array()).matrix();
 
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
@@ -170,6 +165,7 @@ void MimicEnv::updateState()
     }
     state << s, phase;
     reward = 20 - cost();
+    done = reward < 10;
 }
 
 double MimicEnv::cost()

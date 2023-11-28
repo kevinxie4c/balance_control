@@ -422,7 +422,7 @@ for my $itr (1 .. $num_itrs) {
 
         if (defined($observation[$id])) {
             my $reward = $env->get_reward;
-            my $done = $reward < 10;
+            my $done = $env->get_done;
             $sum_return += $reward;
             $sum_length += 1;
 

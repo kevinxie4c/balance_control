@@ -148,6 +148,14 @@ OUTPUT:
     RETVAL
 
 
+int
+CharacterEnv::get_done()
+CODE:
+    RETVAL = (int)THIS->done;
+OUTPUT:
+    RETVAL
+
+
 double
 CharacterEnv::get_period()
 CODE:
