@@ -4,6 +4,7 @@
 #include <nlohmann/json.hpp>
 #include "CharacterEnv.h"
 #include "MimicEnv.h"
+#include "SimpleEnv.h"
 
 using namespace std;
 using namespace dart::dynamics;
@@ -17,9 +18,9 @@ CharacterEnv* CharacterEnv::makeEnv(const char *cfgFilename)
     input >> json;
     input.close();
     if (json["env"] == "mimic")
-    {
         return new MimicEnv(cfgFilename);
-    }
+    else if (json["env"] == "simple")
+        return new SimpleEnv(cfgFilename);
     else
         throw runtime_error(string("unknow env: ") + json["env"].get<string>());
 }
