@@ -13,7 +13,7 @@ use FindBin;
 
 my @cflags = ('-std=c++14 -Icpp/src');
 my @libs;
-for my $dep (qw(eigen3 assimp dart)) {
+for my $dep (qw(eigen3 assimp dart OpenSceneGraph dart-gui-osg)) {
     if (ExtUtils::PkgConfig->exists($dep)) {
 	my $cflag = ExtUtils::PkgConfig->cflags($dep);
 	my $lib = ExtUtils::PkgConfig->libs($dep);

@@ -23,6 +23,7 @@ my $steps_per_itr = 1024;
 my $num_itrs = 5000;
 my $mini_batch_size = 256;
 my $a_scale = 1;
+my $config_file = undef;
 
 GetOptions(
     'G|gpu:i'              => \$use_gpu,
@@ -38,6 +39,12 @@ GetOptions(
     'K|steps_per_itr=i'    => \$steps_per_itr,
     'a|a_scale=f'          => \$a_scale,
 );
+
+unless (@ARGV == 1) {
+    die "usage: $0 [options] config_file\n";
+}
+
+$config_file = shift @ARGV;
 
 my $num_train_itrs = $steps_per_itr / $mini_batch_size;
 if (int($num_train_itrs) != $num_train_itrs) {
@@ -105,6 +112,17 @@ package Buffer {
 
     sub store {
         my ($self, $observation, $action, $reward, $value, $logprobability) = @_;
+        for ($observation, $action, $reward, $value, $logprobability) {
+            my $nan = 0;
+            if (ref eq '') {
+                $nan = 0 if /NaN/;
+            } elsif ($_->aspdl =~ /NaN/) {
+                $nan = 0;
+            }
+            if ($nan) {
+                print "NaN\n";
+            }
+        }
         my $pointer = $self->{pointer};
         $self->{observation_buffer}->slice($pointer) .= $observation;
         $self->{action_buffer}->slice($pointer) .= $action;
@@ -160,13 +178,14 @@ use FindBin;
 use blib "$FindBin::Bin/CharacterEnv/blib";
 use CharacterEnv;
 
-my $para_env = ParallelEnv->new('data/env_config.json', $num_threads);
+my $para_env = ParallelEnv->new($config_file, $num_threads);
 my @envs = $para_env->get_env_list;
 #my $unit_size = 512;
 my $state_size = $envs[0]->get_state_size;
 my $action_size = $envs[0]->get_action_size;
 print "state_size: $state_size\n";
 print "action_size: $action_size\n";
+$envs[0]->print_info;
 
 sub mlp {
     my ($sizes, $activation) = @_;
@@ -246,12 +265,12 @@ my $clip_ratio = 0.2;
 my $num_epochs = 3;
 my $lam = 0.97;
 my $target_kl = 0.01;
-my $policy_learning_rate = 1e-3;
-my $value_function_learning_rate = 5e-3;
+my $policy_learning_rate = 1e-4;
+my $value_function_learning_rate = 1e-3;
 my $decay_factor = 0.001;
-my $actor_net = ActorModel->new(sizes => [1024, 512],  activation => 'relu');
+my $actor_net = ActorModel->new(sizes => [64, 64],  activation => 'relu');
 #print $actor_net;
-my $critic_net = mlp([1024, 512, 1], 'relu');
+my $critic_net = mlp([64, 64, 1], 'relu');
 #print $critic_net;
 if (defined($load_model)) {
     die "Canno find the model files!" unless -d $load_model and -f "$load_model/actor.par" and -f "$load_model/critic.par";
@@ -332,6 +351,8 @@ $SIG{INT} = sub {
 
 if ($play_policy) {
     my $env = $envs[0];
+    $env->run_viewer;
+    exit;
     open my $fout, '>', "$outdir/positions.txt";
     open my $f_action, '>', "$outdir/actions.txt";
     for (1 .. 1) {
@@ -423,6 +444,14 @@ for my $itr (1 .. $num_itrs) {
         if (defined($observation[$id])) {
             my $reward = $env->get_reward;
             my $done = $env->get_done;
+            if (abs($reward) < 1e-10) {
+                $reward = 0;
+            }
+            #print "$reward\n";
+            if ($reward eq 'NaN') {
+                #$reward = -10;
+                $done = 1;
+            }
             $sum_return += $reward;
             $sum_length += 1;
 
@@ -439,9 +468,16 @@ for my $itr (1 .. $num_itrs) {
             }
         }
 
-        $observation[$id] = mx->nd->array([[$env->get_state_list]]);
+        my @state_list = $env->get_state_list;
+        if (grep($_ eq 'NaN', @state_list) > 0) {
+            @state_list = (-1) x @state_list;
+        }
+        $observation[$id] = mx->nd->array([[@state_list]]);
         my ($mu, $sigma) = $actor_net->($observation[$id]);
         $action[$id] = $actor_net->sample($mu, $sigma);
+        if ($action[$id]->aspdl =~ /NaN/) {
+            print "NaN\n";
+        }
         $logprobability_t[$id] = $actor_net->log_prob($action[$id], $mu, $sigma)->aspdl->at(0, 0);
         #$action[$id] = $action[$id]->clip(-1, 1);
         $env->set_action_list(($action[$id]->clip(-1, 1) * $a_scale)->aspdl->list);
@@ -460,6 +496,10 @@ for my $itr (1 .. $num_itrs) {
 
         if (defined($observation[$id])) {
             my $reward = $env->get_reward;
+            if (abs($reward) < 1e-10) {
+                $reward = 0;
+            }
+            $reward = -10 if $reward eq 'NaN';
             $sum_return += $reward;
             $sum_length += 1;
 
@@ -519,6 +559,10 @@ POLICY_LOOP:
             my $b = $a + $mini_batch_size - 1;
             $b = $steps_per_itr - 1 if $b >= $steps_per_itr;
             ($policy_loss, $kl) = train_policy($all_observation_buffer->slice([$a, $b]), $all_action_buffer->slice([$a, $b]), $all_logprobability_buffer->slice([$a, $b]), $all_advantage_buffer->slice([$a, $b]));
+            my ($m, $s) = $actor_net->(mx->nd->ones([1, $state_size]));
+            if ($m =~ /NaN/ || $s =~ /NaN/) {
+                print "NaN\n";
+            }
             $loss_sum += $policy_loss;
             ++$itrs_sum;
             if ($kl->aspdl->sclr > 1.5 * $target_kl) {

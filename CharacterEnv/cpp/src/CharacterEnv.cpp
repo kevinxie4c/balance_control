@@ -54,3 +54,13 @@ void CharacterEnv::print_info()
     for (const DegreeOfFreedom *dof: skeleton->getDofs())
         cout << dof->getName() << endl;
 }
+
+void CharacterEnv::run_viewer()
+{
+    if (viewer == nullptr)
+    {
+        viewer = new dart::gui::osg::ImGuiViewer(osg::Vec4(0.1, 0.1, 0.1, 1.0));
+        worldNode = new dart::gui::osg::RealTimeWorldNode(world);
+    }
+    viewer->run();
+}

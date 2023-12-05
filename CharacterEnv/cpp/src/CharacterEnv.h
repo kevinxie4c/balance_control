@@ -4,6 +4,8 @@
 #include <random>
 #include <Eigen/Core>
 #include <dart/dart.hpp>
+#include <dart/gui/osg/osg.hpp>
+#include <dart/external/imgui/imgui.h>
 
 class CharacterEnv
 {
@@ -16,9 +18,13 @@ class CharacterEnv
         double getTimeStep();
         //void setTimeStep(double h);
         virtual void print_info();
+        void run_viewer();
 
-        dart::simulation::WorldPtr world;
-        dart::dynamics::SkeletonPtr skeleton;
+        dart::simulation::WorldPtr world = nullptr;
+        dart::dynamics::SkeletonPtr skeleton = nullptr;
+
+        osg::ref_ptr<dart::gui::osg::ImGuiViewer> viewer = nullptr;
+        osg::ref_ptr<dart::gui::osg::WorldNode> worldNode = nullptr;
 
         Eigen::VectorXd action;
         Eigen::VectorXd state;

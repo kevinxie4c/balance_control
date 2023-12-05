@@ -186,6 +186,10 @@ CODE:
     RETVAL = THIS->action.size();
 OUTPUT:
     RETVAL
+
+
+void
+CharacterEnv::run_viewer()
     
 
 MODULE = CharacterEnv		PACKAGE = ParallelEnv
