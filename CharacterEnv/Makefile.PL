@@ -14,12 +14,20 @@ use FindBin;
 my @cflags = ('-std=c++14 -Icpp/src');
 my @libs;
 for my $dep (qw(eigen3 assimp dart)) {
+    my $prefix = "\U${dep}_INSTALL_PREFIX";
     if (ExtUtils::PkgConfig->exists($dep)) {
 	my $cflag = ExtUtils::PkgConfig->cflags($dep);
 	my $lib = ExtUtils::PkgConfig->libs($dep);
 	push @cflags, $cflag if $cflag;
 	push @libs, $lib if $lib;
     } else {
+        my $path = $ENV{$prefix};
+        if (defined($path)) {
+            push @cflags, "-I$path/include";
+            push @libs, "-L$path/lib";
+        } else {
+            warn "Cannot find $dep. Please define $prefix\n";
+        }
 	push @libs, "-l$dep";
     }
 }
