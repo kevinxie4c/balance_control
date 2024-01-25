@@ -120,7 +120,7 @@ package Buffer {
                 $nan = 0;
             }
             if ($nan) {
-                print "NaN\n";
+                print "store: NaN\n";
             }
         }
         my $pointer = $self->{pointer};
@@ -265,8 +265,8 @@ my $clip_ratio = 0.2;
 my $num_epochs = 3;
 my $lam = 0.97;
 my $target_kl = 0.01;
-my $policy_learning_rate = 1e-4;
-my $value_function_learning_rate = 1e-3;
+my $policy_learning_rate = 5e-5;
+my $value_function_learning_rate = 5e-4;
 my $decay_factor = 0.001;
 my $actor_net = ActorModel->new(sizes => [64, 64],  activation => 'relu');
 #print $actor_net;
@@ -351,15 +351,13 @@ $SIG{INT} = sub {
 
 if ($play_policy) {
     my $env = $envs[0];
-    $env->run_viewer;
-    exit;
+    #$env->run_viewer;
+    #exit;
     open my $fout, '>', "$outdir/positions.txt";
     open my $f_action, '>', "$outdir/actions.txt";
-    for (1 .. 1) {
     $env->reset;
     my $observation = mx->nd->array([[$env->get_state_list]]);
-    #for my $t (1 .. $steps_per_itr) {
-    for my $t (1 .. 30) {
+    until ($env->viewer_done) {
         print $fout join(' ', $env->get_positions_list), "\n";
         #print "state: ", $observation->aspdl, "\n";
         my ($mu, $sigma) = $actor_net->($observation);
@@ -368,19 +366,19 @@ if ($play_policy) {
         $action = $action->clip(-1, 1);
         print $f_action join(' ', $action->aspdl->list), "\n";
         #print "action: ", $action->aspdl, "\n";
+        #$a_scale = 0;
         $env->set_action_list(($action * $a_scale)->aspdl->list);
         #$env->set_action_list((0) x $action_size);
         $env->step;
         my $reward = $env->get_reward;
         #print "(", ($env->get_state_list)[0], ") ";
-        print "$reward ";
+        #print "$reward ";
         #my $done = $reward < 10;
         #last if $done;
         $observation= mx->nd->array([[$env->get_state_list]]);
+        $env->render_viewer;
     }
-    print "end\n";
-}
-    exit;
+    exit();
 }
 
 #open my $f_action, '>', "$outdir/action.txt";
@@ -449,7 +447,8 @@ for my $itr (1 .. $num_itrs) {
             }
             #print "$reward\n";
             if ($reward eq 'NaN') {
-                #$reward = -10;
+                print "reward: NaN\n";
+                $reward = -100;
                 $done = 1;
             }
             $sum_return += $reward;
@@ -470,13 +469,14 @@ for my $itr (1 .. $num_itrs) {
 
         my @state_list = $env->get_state_list;
         if (grep($_ eq 'NaN', @state_list) > 0) {
+            print "state: NaN\n";
             @state_list = (-1) x @state_list;
         }
         $observation[$id] = mx->nd->array([[@state_list]]);
         my ($mu, $sigma) = $actor_net->($observation[$id]);
         $action[$id] = $actor_net->sample($mu, $sigma);
         if ($action[$id]->aspdl =~ /NaN/) {
-            print "NaN\n";
+            print "action: NaN\n";
         }
         $logprobability_t[$id] = $actor_net->log_prob($action[$id], $mu, $sigma)->aspdl->at(0, 0);
         #$action[$id] = $action[$id]->clip(-1, 1);
