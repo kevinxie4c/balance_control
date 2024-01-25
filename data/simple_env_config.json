@@ -4,6 +4,6 @@
     "friction_coeff": 1.0,
     "restitution_coeff": 0.0,
     "scales": "data/simple_env_scales.txt",
-    "lower_limits": "data/simple_env_lower_limits",
-    "upper_limits": "data/simple_env_upper_limits"
+    "lower_limits": "data/simple_env_lower_limits.txt",
+    "upper_limits": "data/simple_env_upper_limits.txt"
 }
