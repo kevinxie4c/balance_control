@@ -61,6 +61,12 @@ print "test tensor: $test_tensor\n";
 
 $num_threads = 1 if $play_policy;
 
+if (defined($save_model)) {
+    mkdir $save_model unless -e $save_model;
+} else {
+    die "undefined save_model";
+}
+
 sub discounted_cumulative_sums {
     my ($x, $discount) = @_;
     my $n = $x->size;
@@ -259,14 +265,75 @@ package ActorModel {
     }
 }
 
+package RunningMeanStd {
+    sub new {
+        my ($class, $shape) = @_;
+        my $self = bless {
+            n => 0,
+            mean => mx->nd->zeros($shape),
+            nvar => mx->nd->zeros($shape),
+            std => mx->nd->zeros($shape),
+        }, $class;
+    }
+
+    sub update {
+        my ($self, $x) = @_;
+        ++$self->{n};
+        my $m = $self->{mean}->copy;
+        $self->{mean} =  $m + ($x - $m) / $self->{n};
+        $self->{nvar} = $self->{nvar} + ($x - $m) * ($x - $self->{mean});
+        $self->{std} = sqrt($self->{nvar} / $self->{n});
+    }
+}
+
+package Normalizer {
+    sub new {
+        my ($class, $shape) = @_;
+        my $self = bless {
+            ms => RunningMeanStd->new($shape),
+        }, $class;
+    }
+
+    sub normalize {
+        my ($self, $x, $update) = @_;
+        $update = 1 unless defined $update;
+        if ($update) {
+            $self->{ms}->update($x);
+        }
+        return ($x - $self->{ms}{mean}) / ($self->{ms}{std} + 1e-8);
+    }
+
+    sub save {
+        my ($self, $suffix) = @_;
+        if (defined $suffix) {
+            $suffix = "-$suffix";
+        } else {
+            $suffix = '';
+        }
+        mx->nd->save("$save_model/state_normalizer$suffix.nd", {
+                mean => $self->{ms}{mean},
+                nvar => $self->{ms}{nvar},
+                std => $self->{ms}{std},
+            });
+    }
+
+    sub load {
+        my ($self) = @_;
+        my $h = mx->nd->load("$load_model/state_normalizer.nd");
+        $self->{ms}{mean} = $h->{mean};
+        $self->{ms}{nvar} = $h->{nvar};
+        $self->{ms}{std} = $h->{std};
+    }
+}
+
 
 my $gamma = 0.99;
 my $clip_ratio = 0.2;
 my $num_epochs = 3;
 my $lam = 0.97;
 my $target_kl = 0.01;
-my $policy_learning_rate = 5e-5;
-my $value_function_learning_rate = 5e-4;
+my $policy_learning_rate = 2e-4;
+my $value_function_learning_rate = 2e-3;
 my $decay_factor = 0.001;
 my $actor_net = ActorModel->new(sizes => [64, 64],  activation => 'relu');
 #print $actor_net;
@@ -281,6 +348,11 @@ if (defined($load_model)) {
 } else {
     $actor_net->initialize(mx->init->Xavier());
     $critic_net->initialize(mx->init->Xavier());
+}
+
+my $state_normalizer = Normalizer->new([1, $state_size]);
+if (defined($load_model)) {
+    $state_normalizer->load;
 }
 
 my $policy_optimizer = gluon->Trainer(
@@ -336,12 +408,6 @@ for my $env (@envs) {
 
 my $i_img = 0;
 
-if (defined($save_model)) {
-    mkdir $save_model unless -e $save_model;
-} else {
-    die "undefined save_model";
-}
-
 my $interrupt = 0;
 
 $SIG{INT} = sub {
@@ -357,6 +423,7 @@ if ($play_policy) {
     open my $f_action, '>', "$outdir/actions.txt";
     $env->reset;
     my $observation = mx->nd->array([[$env->get_state_list]]);
+    $observation = $state_normalizer->normalize($observation, 0);
     until ($env->viewer_done) {
         print $fout join(' ', $env->get_positions_list), "\n";
         #print "state: ", $observation->aspdl, "\n";
@@ -375,7 +442,8 @@ if ($play_policy) {
         #print "$reward ";
         #my $done = $reward < 10;
         #last if $done;
-        $observation= mx->nd->array([[$env->get_state_list]]);
+        $observation = mx->nd->array([[$env->get_state_list]]);
+        $observation = $state_normalizer->normalize($observation, 0);
         $env->render_viewer;
     }
     exit();
@@ -391,6 +459,7 @@ for my $itr (1 .. $num_itrs) {
     my ($sum_return, $sum_length, $num_episodes) = (0, 0, 0);
     #my ($episode_return, $episode_length) = (0, 0);
     #my $observation = mx->nd->array([[$env->get_state_list]]);
+    #$observation = $state_normalizer->normalize($observation, 0);
 
     #for my $t (1 .. $steps_per_itr) {
     #    my ($mu, $sigma) = $actor_net->($observation);
@@ -473,6 +542,7 @@ for my $itr (1 .. $num_itrs) {
             @state_list = (-1) x @state_list;
         }
         $observation[$id] = mx->nd->array([[@state_list]]);
+        $observation[$id] = $state_normalizer->normalize($observation[$id]);
         my ($mu, $sigma) = $actor_net->($observation[$id]);
         $action[$id] = $actor_net->sample($mu, $sigma);
         if ($action[$id]->aspdl =~ /NaN/) {
@@ -594,6 +664,7 @@ POLICY_LOOP:
     if ($itr % $save_interval == 0) {
         $actor_net->save_parameters(sprintf("$save_model/actor-%06d.par", $itr));
         $critic_net->save_parameters(sprintf("$save_model/critic-%06d.par", $itr));
+        $state_normalizer->save(sprintf("%06d", $itr));
     }
 
     last if $interrupt;
@@ -601,3 +672,4 @@ POLICY_LOOP:
 
 $actor_net->save_parameters("$save_model/actor.par");
 $critic_net->save_parameters("$save_model/critic.par");
+$state_normalizer->save;
