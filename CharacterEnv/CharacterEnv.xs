@@ -190,6 +190,14 @@ OUTPUT:
 
 void
 CharacterEnv::run_viewer()
+
+
+void
+CharacterEnv::render_viewer()
+
+
+bool
+CharacterEnv::viewer_done()
     
 
 MODULE = CharacterEnv		PACKAGE = ParallelEnv

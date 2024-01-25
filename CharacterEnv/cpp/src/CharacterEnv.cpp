@@ -62,6 +62,31 @@ void CharacterEnv::run_viewer()
         worldNode = new dart::gui::osg::RealTimeWorldNode(world);
         viewer = new dart::gui::osg::ImGuiViewer(osg::Vec4(0.1, 0.1, 0.1, 1.0));
         viewer->addWorldNode(worldNode.get());
+        viewer->getCameraManipulator()->setHomePosition(osg::Vec3(0, 1, 5), osg::Vec3(0, 1, 0), osg::Vec3(0, 1, 0));
     }
     viewer->run();
+}
+
+void CharacterEnv::render_viewer()
+{
+    if (viewer == nullptr)
+    {
+        worldNode = new dart::gui::osg::RealTimeWorldNode(world);
+        viewer = new dart::gui::osg::ImGuiViewer(osg::Vec4(0.1, 0.1, 0.1, 1.0));
+        viewer->addWorldNode(worldNode.get());
+        viewer->getCameraManipulator()->setHomePosition(osg::Vec3(0, 1, 5), osg::Vec3(0, 1, 0), osg::Vec3(0, 1, 0));
+    }
+    viewer->frame();
+}
+
+bool CharacterEnv::viewer_done()
+{
+    if (viewer == nullptr)
+    {
+        worldNode = new dart::gui::osg::RealTimeWorldNode(world);
+        viewer = new dart::gui::osg::ImGuiViewer(osg::Vec4(0.1, 0.1, 0.1, 1.0));
+        viewer->addWorldNode(worldNode.get());
+        viewer->getCameraManipulator()->setHomePosition(osg::Vec3(0, 1, 5), osg::Vec3(0, 1, 0), osg::Vec3(0, 1, 0));
+    }
+    return viewer->done();
 }

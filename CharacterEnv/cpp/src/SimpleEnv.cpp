@@ -1,3 +1,4 @@
+#include <dart/collision/bullet/BulletCollisionDetector.hpp>
 #include "SimCharacter.h"
 #include "SimpleEnv.h"
 #include "IOUtil.h"
@@ -24,6 +25,9 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
     world->setTimeStep(1.0 / forceRate);
     //world->getConstraintSolver()->setCollisionDetector(dart::collision::DARTCollisionDetector::create());
     //world->getConstraintSolver()->setCollisionDetector(dart::collision::FCLCollisionDetector::create());
+    //world->getConstraintSolver()->setCollisionDetector(dart::collision::BulletCollisionDetector::create());
+    //world->getConstraintSolver()->setLCPSolver(std::unique_ptr<dart::constraint::LCPSolver>(new dart::constraint::DantzigLCPSolver(world->getTimeStep())));
+    //world->getConstraintSolver()->setLCPSolver(std::unique_ptr<dart::constraint::LCPSolver>(new dart::constraint::PGSLCPSolver(world->getTimeStep())));
 
     floor = Skeleton::create("floor");
     BodyNodePtr body = floor->createJointAndBodyNodePair<WeldJoint>(nullptr).second;
@@ -31,7 +35,7 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
     //body->setFrictionCoeff(json["friction_coeff"].get<double>());
     //body->setRestitutionCoeff(json["restitution_coeff"].get<double>());
     body->setName("floor");
-    double floor_width = 1e8;
+    double floor_width = 1e2;
     double floor_height = 1;
     shared_ptr<BoxShape> box(new BoxShape(Vector3d(floor_width, floor_height, floor_width)));
     //auto shapeNode = body->createShapeNodeWith<CollisionAspect, DynamicsAspect>(box);
@@ -40,7 +44,7 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
     shapeNode->getDynamicsAspect()->setRestitutionCoeff(json["restitution_coeff"].get<double>());
     shapeNode->getVisualAspect()->setColor(Eigen::Vector3d(0.0, 0.0, 1.0));
     Isometry3d tf(Isometry3d::Identity());
-    tf.translation() = Vector3d(0.0, -0.501, 0.0);
+    tf.translation() = Vector3d(0.0, -0.502, 0.0);
     body->getParentJoint()->setTransformFromParentBodyNode(tf);
     world->addSkeleton(floor);
 
@@ -95,6 +99,8 @@ void SimpleEnv::updateState()
     Vector3d v = root->getCOMLinearVelocity();
     Vector3d v_bar;
     v_bar << 1, 0, 0;
+    //cout << v.transpose() << endl;
     reward = exp(-(v - v_bar).norm());
-    done = root->getCOM().y() < 0.5;
+    done = root->getCOM().y() < 1.0;
+    //cout << root->getCOM().transpose() << endl;
 }

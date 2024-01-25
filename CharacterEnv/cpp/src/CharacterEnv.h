@@ -19,6 +19,8 @@ class CharacterEnv
         //void setTimeStep(double h);
         virtual void print_info();
         void run_viewer();
+        void render_viewer();
+        bool viewer_done();
 
         dart::simulation::WorldPtr world = nullptr;
         dart::dynamics::SkeletonPtr skeleton = nullptr;
