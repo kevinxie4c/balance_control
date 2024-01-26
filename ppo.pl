@@ -332,8 +332,8 @@ my $clip_ratio = 0.2;
 my $num_epochs = 3;
 my $lam = 0.97;
 my $target_kl = 0.01;
-my $policy_learning_rate = 5e-4;
-my $value_function_learning_rate = 5e-3;
+my $policy_learning_rate = 1e-4;
+my $value_function_learning_rate = 1e-3;
 my $decay_factor = 0.001;
 my $actor_net = ActorModel->new(sizes => [64, 64],  activation => 'relu');
 #print $actor_net;
@@ -452,6 +452,8 @@ if ($play_policy) {
 #open my $f_action, '>', "$outdir/action.txt";
 #open my $f_pos, '>', "$outdir/position.txt";
 open my $f_ret, '>', "$outdir/return_length.txt";
+
+my $best_return = '-inf';
 
 for my $itr (1 .. $num_itrs) {
     $g_sigma = $sigma_begin * ($num_itrs - $itr + 1) / ($num_itrs - 1) + $sigma_end * ($itr - 1) / ($num_itrs - 1);
@@ -686,6 +688,13 @@ POLICY_LOOP:
         $actor_net->save_parameters(sprintf("$save_model/actor-%06d.par", $itr));
         $critic_net->save_parameters(sprintf("$save_model/critic-%06d.par", $itr));
         $state_normalizer->save(sprintf("%06d", $itr));
+    }
+
+    if ($best_return < $test_return) {
+        $best_return = $test_return;
+        $actor_net->save_parameters("$save_model/actor-best.par");
+        $critic_net->save_parameters("$save_model/critic-best.par");
+        $state_normalizer->save("best");
     }
 
     last if $interrupt;
