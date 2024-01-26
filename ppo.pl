@@ -17,7 +17,7 @@ my $save_interval = 200;
 my $g_sigma = 0;
 my $outdir = "output";
 my $num_threads = 4;
-my $sigma_begin = 0.1;
+my $sigma_begin = 0.05;
 my $sigma_end = 0.01;
 my $steps_per_itr = 1024;
 my $num_itrs = 5000;
@@ -332,8 +332,8 @@ my $clip_ratio = 0.2;
 my $num_epochs = 3;
 my $lam = 0.97;
 my $target_kl = 0.01;
-my $policy_learning_rate = 2e-4;
-my $value_function_learning_rate = 2e-3;
+my $policy_learning_rate = 5e-4;
+my $value_function_learning_rate = 5e-3;
 my $decay_factor = 0.001;
 my $actor_net = ActorModel->new(sizes => [64, 64],  activation => 'relu');
 #print $actor_net;
@@ -658,8 +658,29 @@ POLICY_LOOP:
     $value_loss = $loss_sum / $itrs_sum;
     my $train_time = time - $prev_time;
 
-    print "Itr: $itr. Sigma: $g_sigma. Mean Return: ", $sum_return / $num_episodes, ". Mean Length: ", $sum_length / $num_episodes, ". Policy Loss: ", $policy_loss->aspdl->sclr, ". Value Loss: ", $value_loss->aspdl->sclr, ". Time: $sim_time, $train_time\n";
-    print $f_ret $sum_return / $num_episodes, " ", $sum_length / $num_episodes, "\n";
+    my $test_return = 0;
+    my $test_length = 0;
+    my $acc_gamma = 1;
+    my $env = $envs[0];
+    $env->reset;
+    my $observation = mx->nd->array([[$env->get_state_list]]);
+    $observation = $state_normalizer->normalize($observation, 0);
+    until ($env->get_done || $test_length >= $steps_per_itr) {
+        my ($mu, $sigma) = $actor_net->($observation);
+        my $action = $mu;   # deterministic
+        $action = $action->clip(-1, 1);
+        $env->set_action_list(($action * $a_scale)->aspdl->list);
+        $env->step;
+        my $reward = $env->get_reward;
+        $test_return += $acc_gamma * $reward;
+        $acc_gamma *= $gamma;
+        ++$test_length;
+        $observation = mx->nd->array([[$env->get_state_list]]);
+        $observation = $state_normalizer->normalize($observation, 0);
+    }
+
+    print "Itr: $itr. Sigma: $g_sigma. Mean Return: ", $sum_return / $num_episodes, ". Mean Length: ", $sum_length / $num_episodes, ". Test Return: $test_return. Test Length: $test_length. Policy Loss: ", $policy_loss->aspdl->sclr, ". Value Loss: ", $value_loss->aspdl->sclr, ". Time: $sim_time, $train_time\n";
+    print $f_ret $sum_return / $num_episodes, " ", $sum_length / $num_episodes, "$test_return $test_length\n";
 
     if ($itr % $save_interval == 0) {
         $actor_net->save_parameters(sprintf("$save_model/actor-%06d.par", $itr));
