@@ -26,8 +26,8 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
     //world->getConstraintSolver()->setCollisionDetector(dart::collision::DARTCollisionDetector::create());
     //world->getConstraintSolver()->setCollisionDetector(dart::collision::FCLCollisionDetector::create());
     world->getConstraintSolver()->setCollisionDetector(dart::collision::BulletCollisionDetector::create());
-    ((dart::constraint::BoxedLcpConstraintSolver*)world->getConstraintSolver())->setBoxedLcpSolver(std::unique_ptr<dart::constraint::BoxedLcpSolver>(new dart::constraint::DantzigBoxedLcpSolver()));
-    //((dart::constraint::BoxedLcpConstraintSolver*)world->getConstraintSolver())->setBoxedLcpSolver(std::unique_ptr<dart::constraint::BoxedLcpSolver>(new dart::constraint::PgsBoxedLcpSolver()));
+    //((dart::constraint::BoxedLcpConstraintSolver*)world->getConstraintSolver())->setBoxedLcpSolver(std::unique_ptr<dart::constraint::BoxedLcpSolver>(new dart::constraint::DantzigBoxedLcpSolver()));
+    ((dart::constraint::BoxedLcpConstraintSolver*)world->getConstraintSolver())->setBoxedLcpSolver(std::unique_ptr<dart::constraint::BoxedLcpSolver>(new dart::constraint::PgsBoxedLcpSolver()));
 
     floor = Skeleton::create("floor");
     BodyNodePtr body = floor->createJointAndBodyNodePair<WeldJoint>(nullptr).second;
@@ -100,8 +100,9 @@ void SimpleEnv::updateState()
     Vector3d v_bar;
     v_bar << 1, 0, 0;
     //cout << v.transpose() << endl;
-    reward = exp(-(v - v_bar).norm()) + exp(-action.norm());
+    //reward = exp(-(v - v_bar).norm()) + exp(-action.norm());
     //cout << exp(-(v - v_bar).norm()) << " " << exp(-action.norm()) << endl;
+    reward = (v.x() > 0 ? 1 : 0) + exp(-action.norm());
     done = root->getCOM().y() < 1.00 || root->getCOM().y() > 1.50;
     //cout << root->getCOM().transpose() << endl;
 }

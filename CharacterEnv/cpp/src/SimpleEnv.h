@@ -14,7 +14,7 @@ class SimpleEnv: public CharacterEnv
         void updateState();
 
         int actionRate = 30;
-        int forceRate = 600;
+        int forceRate = 6000;
 
         dart::dynamics::SkeletonPtr floor;
         Eigen::VectorXd scales;
