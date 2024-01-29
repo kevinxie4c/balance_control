@@ -1,4 +1,5 @@
 #include <dart/collision/bullet/BulletCollisionDetector.hpp>
+#include <dart/collision/ode/OdeCollisionDetector.hpp>
 #include "SimCharacter.h"
 #include "SimpleEnv.h"
 #include "IOUtil.h"
@@ -25,7 +26,8 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
     world->setTimeStep(1.0 / forceRate);
     //world->getConstraintSolver()->setCollisionDetector(dart::collision::DARTCollisionDetector::create());
     //world->getConstraintSolver()->setCollisionDetector(dart::collision::FCLCollisionDetector::create());
-    world->getConstraintSolver()->setCollisionDetector(dart::collision::BulletCollisionDetector::create());
+    //world->getConstraintSolver()->setCollisionDetector(dart::collision::BulletCollisionDetector::create());
+    world->getConstraintSolver()->setCollisionDetector(dart::collision::OdeCollisionDetector::create());
     //((dart::constraint::BoxedLcpConstraintSolver*)world->getConstraintSolver())->setBoxedLcpSolver(std::unique_ptr<dart::constraint::BoxedLcpSolver>(new dart::constraint::DantzigBoxedLcpSolver()));
     ((dart::constraint::BoxedLcpConstraintSolver*)world->getConstraintSolver())->setBoxedLcpSolver(std::unique_ptr<dart::constraint::BoxedLcpSolver>(new dart::constraint::PgsBoxedLcpSolver()));
 
