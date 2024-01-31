@@ -17,7 +17,7 @@ my $save_interval = 200;
 my $g_sigma = 0;
 my $outdir = "output";
 my $num_threads = 4;
-my $sigma_begin = 0.05;
+my $sigma_begin = 0.1;
 my $sigma_end = 0.01;
 my $steps_per_itr = 1024;
 my $num_itrs = 5000;
@@ -99,8 +99,6 @@ sub reorder {
 package Buffer {
     sub new {
         my ($class, $ob_dim, $ac_dim, $size, $gamma, $lam) = @_;
-        $gamma = 0.99 unless defined($gamma);
-        $lam = 0.95 unless defined($lam);
         my $self = bless {
             observation_buffer     => mx->nd->zeros([$size, $ob_dim]),
             action_buffer          => mx->nd->zeros([$size, $ac_dim]),
@@ -346,7 +344,8 @@ if (defined($load_model)) {
     print "load critic from $load_model/critic.par\n";
     $critic_net->load_parameters("$load_model/critic.par");
 } else {
-    $actor_net->initialize(mx->init->Xavier());
+    $actor_net->dense_base->initialize(mx->init->Xavier());
+    $actor_net->dense_mu->initialize(mx->init->Normal(0.01));
     $critic_net->initialize(mx->init->Xavier());
 }
 
@@ -399,7 +398,7 @@ sub train_value_function {
 #my $buffer = Buffer->new($state_size, $action_size, $steps_per_itr);
 my @buffers;
 for (1 .. $num_threads) {
-    push(@buffers, Buffer->new($state_size, $action_size, $steps_per_itr));
+    push(@buffers, Buffer->new($state_size, $action_size, $steps_per_itr, $gamma, $lam));
 }
 
 for my $env (@envs) {
@@ -505,6 +504,7 @@ for my $itr (1 .. $num_itrs) {
     my (@observation, @action, @logprobability_t);
     my $total_steps = 0;
     my @steps = (0) x $num_threads;
+    my @acc_gamma_list = (1) x $num_threads;
     my $prev_time = time;
     while ($total_steps < $steps_per_itr) {
         my $id = $para_env->get_task_done_id;
@@ -522,7 +522,8 @@ for my $itr (1 .. $num_itrs) {
                 $reward = -100;
                 $done = 1;
             }
-            $sum_return += $reward;
+            $sum_return += $acc_gamma_list[$id] * $reward;
+            $acc_gamma_list[$id] *= $gamma;
             $sum_length += 1;
 
             my $value_t = $critic_net->($observation[$id])->aspdl->at(0, 0);
@@ -535,6 +536,7 @@ for my $itr (1 .. $num_itrs) {
                 $num_episodes += 1;
                 $env->reset;
                 $observation[$id] = undef;
+                $acc_gamma_list[$id] = 1;
             }
         }
 
@@ -572,7 +574,7 @@ for my $itr (1 .. $num_itrs) {
                 $reward = 0;
             }
             $reward = -10 if $reward eq 'NaN';
-            $sum_return += $reward;
+            $sum_return += $acc_gamma_list[$id] * $reward;
             $sum_length += 1;
 
             my $value_t = $critic_net->($observation[$id])->aspdl->at(0, 0);
@@ -584,6 +586,7 @@ for my $itr (1 .. $num_itrs) {
             $num_episodes += 1;
             $env->reset;
             $observation[$id] = undef;
+            $acc_gamma_list[$id] = 1;
         }
 
         $all_finished = 1;
@@ -690,8 +693,8 @@ POLICY_LOOP:
         $state_normalizer->save(sprintf("%06d", $itr));
     }
 
-    if ($best_return < $test_return) {
-        $best_return = $test_return;
+    if ($best_return < $sum_return / $num_episodes) {
+        $best_return = $sum_return / $num_episodes;
         $actor_net->save_parameters("$save_model/actor-best.par");
         $critic_net->save_parameters("$save_model/critic-best.par");
         $state_normalizer->save("best");
