@@ -330,8 +330,8 @@ my $clip_ratio = 0.2;
 my $num_epochs = 3;
 my $lam = 0.97;
 my $target_kl = 0.01;
-my $policy_learning_rate = 1e-4;
-my $value_function_learning_rate = 1e-3;
+my $policy_learning_rate = 5e-4;
+my $value_function_learning_rate = 5e-3;
 my $decay_factor = 0.001;
 my $actor_net = ActorModel->new(sizes => [64, 64],  activation => 'relu');
 #print $actor_net;
@@ -420,6 +420,9 @@ if ($play_policy) {
     #exit;
     open my $fout, '>', "$outdir/positions.txt";
     open my $f_action, '>', "$outdir/actions.txt";
+    open my $f_reward, '>', "$outdir/rewards.txt";
+    my $acc_gamma = 1;
+    my $test_return = 0;
     $env->reset;
     my $observation = mx->nd->array([[$env->get_state_list]]);
     $observation = $state_normalizer->normalize($observation, 0);
@@ -437,6 +440,10 @@ if ($play_policy) {
         #$env->set_action_list((0) x $action_size);
         $env->step;
         my $reward = $env->get_reward;
+        my $done = $env->get_done;
+        $test_return += $acc_gamma * $reward;
+        $acc_gamma *= $gamma;
+        print $f_reward "$reward $test_return $done\n";
         #print "(", ($env->get_state_list)[0], ") ";
         #print "$reward ";
         #my $done = $reward < 10;
@@ -693,8 +700,8 @@ POLICY_LOOP:
         $state_normalizer->save(sprintf("%06d", $itr));
     }
 
-    if ($best_return < $sum_return / $num_episodes) {
-        $best_return = $sum_return / $num_episodes;
+    if ($best_return < $test_return) {
+        $best_return = $test_return;
         $actor_net->save_parameters("$save_model/actor-best.par");
         $critic_net->save_parameters("$save_model/critic-best.par");
         $state_normalizer->save("best");
