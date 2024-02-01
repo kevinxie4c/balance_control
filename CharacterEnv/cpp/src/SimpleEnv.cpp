@@ -81,6 +81,7 @@ void SimpleEnv::reset()
 
 void SimpleEnv::step()
 {
+    Eigen::Vector3d prev_com = skeleton->getRootBodyNode()->getCOM();
     VectorXd force = action.array() * scales.array();
     force.head(3).setZero();
     //force.setZero();
@@ -97,14 +98,8 @@ void SimpleEnv::step()
 void SimpleEnv::updateState()
 {
     state << skeleton->getPositions(), skeleton->getVelocities();
-    const BodyNode *root = skeleton->getRootBodyNode();
-    Vector3d v = root->getCOMLinearVelocity();
-    Vector3d v_bar;
-    v_bar << 1, 0, 0;
-    //cout << v.transpose() << endl;
-    //reward = exp(-(v - v_bar).norm()) + exp(-action.norm());
-    //cout << exp(-(v - v_bar).norm()) << " " << exp(-action.norm()) << endl;
-    reward = (v.x() > 0 ? 1 : 0) + exp(-action.norm());
-    done = root->getCOM().y() < 1.00 || root->getCOM().y() > 1.50;
+    Eigen::Vector3d curr_com = skeleton->getRootBodyNode()->getCOM();
+    done = curr_com.y() < 1.00 || curr_com.y() > 1.50;
+    reward = 5 * (curr_com.x() - prev_com.x()) + exp(-action.norm()) + (done ? 0 : 1);
     //cout << root->getCOM().transpose() << endl;
 }
