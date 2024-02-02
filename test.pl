@@ -8,10 +8,12 @@ my $tm_total = time;
 my $step_time;
 
 print "CharacterEnv test\n";
-my $env = CharacterEnv->new('data/env_config.json');
-print "state_size: ", $env->get_state_size, "\n";
-print "action_size: ", $env->get_action_size, "\n";
-$env->set_action_list((0) x 69);
+my $env = CharacterEnv->new('data/simple_env_config.json');
+my $state_size = $env->get_state_size;
+my $action_size = $env->get_action_size;
+print "state_size: $state_size\n";
+print "action_size: $action_size\n";
+$env->set_action_list((0) x $action_size);
 open my $fout, '>', 'positions.txt';
 print "period: ", $env->get_period, "\n";
 print "reward: ", $env->get_reward, "\n";
@@ -33,7 +35,7 @@ print "step_time / total_time: ", $step_time / $total_time, "\n";
 
 print "ParallelEnv test\n";
 my $num_threads = 4;
-$env = ParallelEnv->new('data/env_config.json', $num_threads);
+$env = ParallelEnv->new('data/simple_env_config.json', $num_threads);
 print $env, "\n";
 my @envs = $env->get_env_list;
 print "# of envs: ", scalar(@envs), "\n";
