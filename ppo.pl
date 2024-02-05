@@ -346,6 +346,7 @@ if (defined($load_model)) {
 } else {
     $actor_net->dense_base->initialize(mx->init->Xavier());
     $actor_net->dense_mu->initialize(mx->init->Normal(0.01));
+    #$actor_net->dense_sigma->initialize(mx->init->Zero);
     $critic_net->initialize(mx->init->Xavier());
 }
 
