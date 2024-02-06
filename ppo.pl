@@ -312,6 +312,7 @@ package Normalizer {
                 mean => $self->{ms}{mean},
                 nvar => $self->{ms}{nvar},
                 std => $self->{ms}{std},
+                n => $self->{ms}{n},
             });
     }
 
@@ -321,6 +322,7 @@ package Normalizer {
         $self->{ms}{mean} = $h->{mean};
         $self->{ms}{nvar} = $h->{nvar};
         $self->{ms}{std} = $h->{std};
+        $self->{ms}{n} = $h->{n};
     }
 }
 
