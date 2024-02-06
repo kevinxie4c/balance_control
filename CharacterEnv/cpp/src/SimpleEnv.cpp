@@ -99,7 +99,7 @@ void SimpleEnv::updateState()
 {
     state << skeleton->getPositions(), skeleton->getVelocities();
     Eigen::Vector3d curr_com = skeleton->getRootBodyNode()->getCOM();
-    done = curr_com.y() < 1.00 || curr_com.y() > 1.50;
+    done = curr_com.y() < 0.80 || curr_com.y() > 1.50;
     reward = 5 * (curr_com.x() - prev_com.x()) + exp(-action.norm()) + (done ? 0 : 1);
-    //cout << root->getCOM().transpose() << endl;
+    //cout << curr_com.transpose() << endl;
 }
