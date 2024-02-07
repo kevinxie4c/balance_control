@@ -26,8 +26,8 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
     world->setTimeStep(1.0 / forceRate);
     //world->getConstraintSolver()->setCollisionDetector(dart::collision::DARTCollisionDetector::create());
     //world->getConstraintSolver()->setCollisionDetector(dart::collision::FCLCollisionDetector::create());
-    world->getConstraintSolver()->setCollisionDetector(dart::collision::BulletCollisionDetector::create());
-    //world->getConstraintSolver()->setCollisionDetector(dart::collision::OdeCollisionDetector::create());
+    //world->getConstraintSolver()->setCollisionDetector(dart::collision::BulletCollisionDetector::create());
+    world->getConstraintSolver()->setCollisionDetector(dart::collision::OdeCollisionDetector::create());
     //((dart::constraint::BoxedLcpConstraintSolver*)world->getConstraintSolver())->setBoxedLcpSolver(std::unique_ptr<dart::constraint::BoxedLcpSolver>(new dart::constraint::DantzigBoxedLcpSolver()));
     ((dart::constraint::BoxedLcpConstraintSolver*)world->getConstraintSolver())->setBoxedLcpSolver(std::unique_ptr<dart::constraint::BoxedLcpSolver>(new dart::constraint::PgsBoxedLcpSolver()));
 
@@ -99,7 +99,7 @@ void SimpleEnv::updateState()
 {
     state << skeleton->getPositions(), skeleton->getVelocities();
     Eigen::Vector3d curr_com = skeleton->getRootBodyNode()->getCOM();
-    done = curr_com.y() < 0.80 || curr_com.y() > 1.50;
+    done = curr_com.y() < 0.50 || curr_com.y() > 1.70;
     reward = 5 * (curr_com.x() - prev_com.x()) + exp(-action.norm()) + (done ? 0 : 1);
     //cout << curr_com.transpose() << endl;
 }
