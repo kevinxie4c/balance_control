@@ -6,6 +6,7 @@ use AI::MXNet::AutoGrad qw(autograd);
 use Getopt::Long qw(:config no_ignore_case);
 use Time::HiRes qw(time);
 use List::Util qw(shuffle);
+use Data::Dumper;
 use strict;
 use warnings;
 
@@ -267,7 +268,7 @@ package RunningMeanStd {
     sub new {
         my ($class, $shape) = @_;
         my $self = bless {
-            n => 0,
+            n => mx->nd->zeros([1]),
             mean => mx->nd->zeros($shape),
             nvar => mx->nd->zeros($shape),
             std => mx->nd->zeros($shape),
@@ -332,8 +333,8 @@ my $clip_ratio = 0.2;
 my $num_epochs = 3;
 my $lam = 0.97;
 my $target_kl = 0.01;
-my $policy_learning_rate = 5e-4;
-my $value_function_learning_rate = 5e-3;
+my $policy_learning_rate = 1e-3;
+my $value_function_learning_rate = 1e-2;
 my $decay_factor = 0.001;
 my $actor_net = ActorModel->new(sizes => [64, 64],  activation => 'relu');
 #print $actor_net;
