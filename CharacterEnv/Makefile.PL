@@ -23,8 +23,9 @@ for my $dep (qw(eigen3 assimp dart OpenSceneGraph dart-gui-osg dart-collision-bu
     } else {
         my $path = $ENV{$prefix};
         if (defined($path)) {
-            push @cflags, "-I$path/include";
-            push @libs, "-L$path/lib";
+            push @cflags, "-I$path/include" if -e "$path/include";
+            push @libs, "-L$path/lib" if -e "$path/lib";
+            push @libs, "-L$path/lib64" if -e "$path/lib64";
         } else {
             warn "Cannot find $dep. Please define $prefix\n";
         }

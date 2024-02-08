@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(balance_control)
 
+set(Boost_NO_BOOST_CMAKE ON)
 find_package(Eigen3 REQUIRED)
 find_package(Boost REQUIRED)
 find_package(DART REQUIRED)
