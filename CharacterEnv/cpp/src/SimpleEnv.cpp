@@ -76,12 +76,13 @@ void SimpleEnv::reset()
     VectorXd zeros = VectorXd::Zero(skeleton->getNumDofs());
     skeleton->setPositions(zeros);
     skeleton->setVelocities(zeros);
+    prev_com = skeleton->getRootBodyNode()->getCOM();
     updateState();
 }
 
 void SimpleEnv::step()
 {
-    Eigen::Vector3d prev_com = skeleton->getRootBodyNode()->getCOM();
+    prev_com = skeleton->getRootBodyNode()->getCOM();
     VectorXd force = action.array() * scales.array();
     force.head(3).setZero();
     //force.setZero();
