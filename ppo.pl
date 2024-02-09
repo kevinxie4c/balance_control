@@ -238,6 +238,7 @@ package ActorModel {
                 #$self->dense_mu(nn->Dense($action_size, in_units => $prev_size, activation => 'tanh'));
                 $self->dense_mu(nn->Dense($action_size, in_units => $prev_size));
                 #$self->dense_sigma(nn->Dense($action_size, in_units => $prev_size, activation => 'softrelu'));
+                $self->logstd(mx->gluon->Parameter('logstd', shape => $action_size));
             });
     }
 
@@ -245,7 +246,8 @@ package ActorModel {
         my $y = $self->dense_base->($x);
         #my ($mu, $sigma) = ($self->dense_mu->($y), $self->dense_sigma->($y));
         my $mu = $self->dense_mu->($y);
-        my $sigma = mx->nd->ones($mu->shape) * $g_sigma;
+        #my $sigma = mx->nd->ones($mu->shape) * $g_sigma;
+        my $sigma = exp(mx->nd->ones($mu->shape) * $self->logstd->data);
         return ($mu, $sigma);
     }
 
@@ -350,6 +352,7 @@ if (defined($load_model)) {
     $actor_net->dense_base->initialize(mx->init->Xavier());
     $actor_net->dense_mu->initialize(mx->init->Normal(0.01));
     #$actor_net->dense_sigma->initialize(mx->init->Zero);
+    $actor_net->logstd->initialize(init => mx->init->Zero);
     $critic_net->initialize(mx->init->Xavier());
 }
 
