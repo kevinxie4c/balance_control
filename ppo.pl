@@ -25,6 +25,7 @@ my $num_itrs = 5000;
 my $mini_batch_size = 256;
 my $a_scale = 1;
 my $config_file = undef;
+my $print_help = 0;
 
 GetOptions(
     'G|gpu:i'              => \$use_gpu,
@@ -39,10 +40,25 @@ GetOptions(
     'N|num_itrs=i'         => \$num_itrs,
     'K|steps_per_itr=i'    => \$steps_per_itr,
     'a|a_scale=f'          => \$a_scale,
+    'h|help'               => \$print_help,
 );
 
-unless (@ARGV == 1) {
-    die "usage: $0 [options] config_file\n";
+if (@ARGV != 1 || $print_help) {
+    die <<"HELP_MSG";
+usage: $0 [options] config_file
+options:
+    -G --gpu=INT
+    -l --load_model=STRING
+    -s --save_model=STRING
+    -p --play_policy
+    -i --save_interval=INT
+    -n --num_threads=INT
+    -m --mini_batch_size=INT
+    -N --num_itrs=INT
+    -K --steps_per_itr=INT
+    -a --a_scale=FLOAT
+    -h --help
+HELP_MSG
 }
 
 $config_file = shift @ARGV;
@@ -464,7 +480,7 @@ if ($play_policy) {
 
 #open my $f_action, '>', "$outdir/action.txt";
 #open my $f_pos, '>', "$outdir/position.txt";
-open my $f_ret, '>', "$outdir/return_length.txt";
+open my $f_ret, '>', "$save_model/return_length.txt";
 
 my $best_return = '-inf';
 
