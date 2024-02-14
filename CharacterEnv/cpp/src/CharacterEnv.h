@@ -18,6 +18,7 @@ class CharacterEnv
         double getTimeStep();
         //void setTimeStep(double h);
         virtual void print_info();
+        void create_viewer();
         void run_viewer();
         void render_viewer();
         bool viewer_done();
@@ -35,6 +36,7 @@ class CharacterEnv
         double reward = 0.0;
         bool done = false;
         bool enableRSI = false;
+        osg::Vec3 eye, center, up;
 };
 
 #endif

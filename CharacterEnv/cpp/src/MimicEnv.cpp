@@ -52,12 +52,14 @@ MimicEnv::MimicEnv(const char *cfgFilename)
     //body->setFrictionCoeff(json["friction_coeff"].get<double>());
     //body->setRestitutionCoeff(json["restitution_coeff"].get<double>());
     body->setName("floor");
-    double floor_width = 1e8;
-    double floor_height = 0.01;
+    double floor_width = 1e2;
+    double floor_height = 1;
     shared_ptr<BoxShape> box(new BoxShape(Vector3d(floor_width, floor_width, floor_height)));
-    auto shapeNode = body->createShapeNodeWith<CollisionAspect, DynamicsAspect>(box);
+    //auto shapeNode = body->createShapeNodeWith<CollisionAspect, DynamicsAspect>(box);
+    auto shapeNode = body->createShapeNodeWith<CollisionAspect, DynamicsAspect, VisualAspect>(box);
     shapeNode->getDynamicsAspect()->setFrictionCoeff(json["friction_coeff"].get<double>());
     shapeNode->getDynamicsAspect()->setRestitutionCoeff(json["restitution_coeff"].get<double>());
+    shapeNode->getVisualAspect()->setColor(Eigen::Vector3d(0.0, 0.0, 1.0));
     Isometry3d tf(Isometry3d::Identity());
     tf.translation() = Vector3d(0.0, 0.0, json["floor_z"].get<double>() - floor_height / 2);
     body->getParentJoint()->setTransformFromParentBodyNode(tf);

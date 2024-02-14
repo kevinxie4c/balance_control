@@ -1,6 +1,11 @@
 {
     "env": "mimic",
     "character": "data/humanoid.json",
+    "camera": {
+        "eye": [0, -5, 1],
+        "center": [0, 0, 1],
+        "up": [0, 0, 1]
+    },
     "poses": "data/positions.txt",
     "floor_z": 0.031,
     "friction_coeff": 1.0,

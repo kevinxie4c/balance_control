@@ -43,3 +43,9 @@ Eigen::MatrixXd readMatrixXFrom(const std::string &filename)
     }
     return m;
 }
+
+osg::Vec3 json2Vec3(const nlohmann::json &json)
+{
+    std::vector<double> v = json.get<std::vector<double>>();
+    return osg::Vec3(v[0], v[1], v[2]);
+}

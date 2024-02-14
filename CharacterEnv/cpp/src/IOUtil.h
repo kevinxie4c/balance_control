@@ -5,11 +5,14 @@
 #include <fstream>
 #include <vector>
 #include <Eigen/Core>
+#include <osg/Vec3>
+#include <nlohmann/json.hpp>
 
 template<typename T> std::vector<T> readListFrom(const std::string &filename);
 Eigen::VectorXd readVectorXdFrom(const std::string &filename);
 std::vector<Eigen::VectorXd> readVectorXdListFrom(const std::string &filename);
 Eigen::MatrixXd readMatrixXFrom(const std::string &filename);
+osg::Vec3 json2Vec3(const nlohmann::json &json);
 
 template<typename T>
 std::vector<T> readListFrom(const std::string &filename)

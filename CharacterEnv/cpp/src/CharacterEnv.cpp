@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include <dart/dart.hpp>
 #include <nlohmann/json.hpp>
+#include "IOUtil.h"
 #include "CharacterEnv.h"
 #include "MimicEnv.h"
 #include "SimpleEnv.h"
@@ -11,6 +12,7 @@ using namespace dart::dynamics;
 
 CharacterEnv* CharacterEnv::makeEnv(const char *cfgFilename)
 {
+    CharacterEnv *env = nullptr;
     ifstream input(cfgFilename);
     if (input.fail())
         throw ios_base::failure(string("cannot open ") + cfgFilename);
@@ -18,11 +20,28 @@ CharacterEnv* CharacterEnv::makeEnv(const char *cfgFilename)
     input >> json;
     input.close();
     if (json["env"] == "mimic")
-        return new MimicEnv(cfgFilename);
+        env = new MimicEnv(cfgFilename);
     else if (json["env"] == "simple")
-        return new SimpleEnv(cfgFilename);
+        env = new SimpleEnv(cfgFilename);
     else
         throw runtime_error(string("unknow env: ") + json["env"].get<string>());
+    if (json.contains("camera"))
+    {
+        nlohmann::json camera = json["camera"];
+        if (camera.contains("eye"))
+            env->eye = json2Vec3(camera["eye"]);
+        else
+            env->eye = osg::Vec3(0, 1, 5);
+        if (camera.contains("center"))
+            env->center = json2Vec3(camera["center"]);
+        else
+            env->center = osg::Vec3(0, 1, 0);
+        if (camera.contains("up"))
+            env->up = json2Vec3(camera["up"]);
+        else
+            env->up = osg::Vec3(0, 1, 0);
+    }
+    return env;
 }
 
 double CharacterEnv::getTime()
@@ -55,38 +74,31 @@ void CharacterEnv::print_info()
         cout << dof->getName() << endl;
 }
 
+void CharacterEnv::create_viewer()
+{
+    worldNode = new dart::gui::osg::RealTimeWorldNode(world);
+    viewer = new dart::gui::osg::ImGuiViewer(osg::Vec4(0.1, 0.1, 0.1, 1.0));
+    viewer->addWorldNode(worldNode.get());
+    viewer->getCameraManipulator()->setHomePosition(eye, center, up);
+}
+
 void CharacterEnv::run_viewer()
 {
     if (viewer == nullptr)
-    {
-        worldNode = new dart::gui::osg::RealTimeWorldNode(world);
-        viewer = new dart::gui::osg::ImGuiViewer(osg::Vec4(0.1, 0.1, 0.1, 1.0));
-        viewer->addWorldNode(worldNode.get());
-        viewer->getCameraManipulator()->setHomePosition(osg::Vec3(0, 1, 5), osg::Vec3(0, 1, 0), osg::Vec3(0, 1, 0));
-    }
+        create_viewer();
     viewer->run();
 }
 
 void CharacterEnv::render_viewer()
 {
     if (viewer == nullptr)
-    {
-        worldNode = new dart::gui::osg::RealTimeWorldNode(world);
-        viewer = new dart::gui::osg::ImGuiViewer(osg::Vec4(0.1, 0.1, 0.1, 1.0));
-        viewer->addWorldNode(worldNode.get());
-        viewer->getCameraManipulator()->setHomePosition(osg::Vec3(0, 1, 5), osg::Vec3(0, 1, 0), osg::Vec3(0, 1, 0));
-    }
+        create_viewer();
     viewer->frame();
 }
 
 bool CharacterEnv::viewer_done()
 {
     if (viewer == nullptr)
-    {
-        worldNode = new dart::gui::osg::RealTimeWorldNode(world);
-        viewer = new dart::gui::osg::ImGuiViewer(osg::Vec4(0.1, 0.1, 0.1, 1.0));
-        viewer->addWorldNode(worldNode.get());
-        viewer->getCameraManipulator()->setHomePosition(osg::Vec3(0, 1, 5), osg::Vec3(0, 1, 0), osg::Vec3(0, 1, 0));
-    }
+        create_viewer();
     return viewer->done();
 }
