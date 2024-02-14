@@ -44,7 +44,7 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
     auto shapeNode = body->createShapeNodeWith<CollisionAspect, DynamicsAspect, VisualAspect>(box);
     shapeNode->getDynamicsAspect()->setFrictionCoeff(json["friction_coeff"].get<double>());
     shapeNode->getDynamicsAspect()->setRestitutionCoeff(json["restitution_coeff"].get<double>());
-    shapeNode->getVisualAspect()->setColor(Eigen::Vector3d(0.0, 0.0, 1.0));
+    shapeNode->getVisualAspect()->setColor(Eigen::Vector3d(1.0, 1.0, 1.0));
     Isometry3d tf(Isometry3d::Identity());
     tf.translation() = Vector3d(0.0, -0.502, 0.0);
     body->getParentJoint()->setTransformFromParentBodyNode(tf);
