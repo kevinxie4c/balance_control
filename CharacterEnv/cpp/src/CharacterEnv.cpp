@@ -80,9 +80,6 @@ void CharacterEnv::create_viewer()
     worldNode = new dart::gui::osg::RealTimeWorldNode(world);
     viewer = new dart::gui::osg::ImGuiViewer(osg::Vec4(0.0, 0.5, 1.0, 1.0));
     viewer->addWorldNode(worldNode.get());
-    //osgGA::NodeTrackerManipulator *ntm = new osgGA::NodeTrackerManipulator();
-    //ntm->setTrackNode(skeleton->getRootBodyNode()->getShapeNode(0)->getNode());
-    //viewer->setCameraManipulator(ntm);
     viewer->getCameraManipulator()->setHomePosition(eye, center, up);
     viewer->switchHeadlights(false);
     viewer->setUpwardsDirection(up);
