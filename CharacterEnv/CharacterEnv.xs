@@ -198,6 +198,14 @@ CharacterEnv::render_viewer()
 
 bool
 CharacterEnv::viewer_done()
+
+
+bool
+CharacterEnv::is_playing()
+CODE:
+    RETVAL = THIS->playing;
+OUTPUT:
+    RETVAL
     
 
 MODULE = CharacterEnv		PACKAGE = ParallelEnv

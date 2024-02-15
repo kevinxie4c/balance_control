@@ -37,6 +37,7 @@ class CharacterEnv
         bool done = false;
         bool enableRSI = false;
         osg::Vec3 eye, center, up;
+        bool playing = false;
 };
 
 #endif

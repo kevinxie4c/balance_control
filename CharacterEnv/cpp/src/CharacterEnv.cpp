@@ -2,10 +2,12 @@
 #include <stdexcept>
 #include <dart/dart.hpp>
 #include <nlohmann/json.hpp>
+#include <osgGA/NodeTrackerManipulator>
 #include "IOUtil.h"
 #include "CharacterEnv.h"
 #include "MimicEnv.h"
 #include "SimpleEnv.h"
+#include "CustomEventHandler.h"
 
 using namespace std;
 using namespace dart::dynamics;
@@ -78,9 +80,15 @@ void CharacterEnv::create_viewer()
     worldNode = new dart::gui::osg::RealTimeWorldNode(world);
     viewer = new dart::gui::osg::ImGuiViewer(osg::Vec4(0.0, 0.5, 1.0, 1.0));
     viewer->addWorldNode(worldNode.get());
+    //osgGA::NodeTrackerManipulator *ntm = new osgGA::NodeTrackerManipulator();
+    //ntm->setTrackNode(skeleton->getRootBodyNode()->getShapeNode(0)->getNode());
+    //viewer->setCameraManipulator(ntm);
     viewer->getCameraManipulator()->setHomePosition(eye, center, up);
     viewer->switchHeadlights(false);
     viewer->setUpwardsDirection(up);
+    viewer->addEventHandler(new CustomEventHandler(this));
+    //viewer->record("img");
+    viewer->allowSimulation(false);
 }
 
 void CharacterEnv::run_viewer()

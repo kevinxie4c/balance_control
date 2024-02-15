@@ -17,6 +17,7 @@ my $play_policy = 0;
 my $save_interval = 200;
 my $g_sigma = 0;
 my $outdir = "output";
+my $imgdir = "img";
 my $num_threads = 4;
 my $sigma_begin = 0.1;
 my $sigma_end = 0.01;
@@ -69,7 +70,6 @@ if (int($num_train_itrs) != $num_train_itrs) {
     $num_train_itrs = int($num_train_itrs);
 }
 
-mkdir $outdir unless -e $outdir;
 my $current_ctx = defined($use_gpu) ? mx->gpu($use_gpu) : mx->cpu;
 AI::MXNet::Context->set_current($current_ctx);
 
@@ -441,38 +441,40 @@ if ($play_policy) {
     my $env = $envs[0];
     #$env->run_viewer;
     #exit;
+    mkdir $outdir unless -e $outdir;
+    mkdir $imgdir unless -e $imgdir;
     open my $fout, '>', "$outdir/positions.txt";
     open my $f_action, '>', "$outdir/actions.txt";
     open my $f_reward, '>', "$outdir/rewards.txt";
     my $acc_gamma = 1;
     my $test_return = 0;
     $env->reset;
-    my $observation = mx->nd->array([[$env->get_state_list]]);
-    $observation = $state_normalizer->normalize($observation, 0);
     until ($env->viewer_done) {
-        print $fout join(' ', $env->get_positions_list), "\n";
-        #print "state: ", $observation->aspdl, "\n";
-        my ($mu, $sigma) = $actor_net->($observation);
-        #my $action = $actor_net->choose_action($observation);
-        my $action = $mu;   # deterministic
-        $action = $action->clip(-1, 1);
-        print $f_action join(' ', $action->aspdl->list), "\n";
-        #print "action: ", $action->aspdl, "\n";
-        #$a_scale = 0;
-        $env->set_action_list(($action * $a_scale)->aspdl->list);
-        #$env->set_action_list((0) x $action_size);
-        $env->step;
-        my $reward = $env->get_reward;
-        my $done = $env->get_done;
-        $test_return += $acc_gamma * $reward;
-        $acc_gamma *= $gamma;
-        print $f_reward "$reward $test_return $done\n";
-        #print "(", ($env->get_state_list)[0], ") ";
-        #print "$reward ";
-        #my $done = $reward < 10;
-        #last if $done;
-        $observation = mx->nd->array([[$env->get_state_list]]);
-        $observation = $state_normalizer->normalize($observation, 0);
+        if ($env->is_playing) {
+            my $observation = mx->nd->array([[$env->get_state_list]]);
+            $observation = $state_normalizer->normalize($observation, 0);
+            print $fout join(' ', $env->get_positions_list), "\n";
+            #print "state: ", $observation->aspdl, "\n";
+            my ($mu, $sigma) = $actor_net->($observation);
+            #my $action = $actor_net->choose_action($observation);
+            my $action = $mu;   # deterministic
+            $action = $action->clip(-1, 1);
+            print $f_action join(' ', $action->aspdl->list), "\n";
+            #print "action: ", $action->aspdl, "\n";
+            #$a_scale = 0;
+            $env->set_action_list(($action * $a_scale)->aspdl->list);
+            #$env->set_action_list((0) x $action_size);
+            $env->step;
+            my $reward = $env->get_reward;
+            my $done = $env->get_done;
+            $test_return += $acc_gamma * $reward;
+            $acc_gamma *= $gamma;
+            print $f_reward "$reward $test_return $done\n";
+            #print "(", ($env->get_state_list)[0], ") ";
+            #print "$reward ";
+            #my $done = $reward < 10;
+            #last if $done;
+        }
         $env->render_viewer;
     }
     exit();
