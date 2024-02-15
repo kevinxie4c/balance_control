@@ -87,7 +87,6 @@ void CharacterEnv::create_viewer()
     viewer->switchHeadlights(false);
     viewer->setUpwardsDirection(up);
     viewer->addEventHandler(new CustomEventHandler(this));
-    //viewer->record("img");
     viewer->allowSimulation(false);
 }
 

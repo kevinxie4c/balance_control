@@ -11,10 +11,17 @@ bool CustomEventHandler::handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActi
             env->playing = !env->playing;
             return true;
         }
-        if (ea.getKey() == osgGA::GUIEventAdapter::KEY_R)
+        else if (ea.getKey() == osgGA::GUIEventAdapter::KEY_R)
         {
             env->reset();
             return true;
+        }
+        else if (ea.getKey() == osgGA::GUIEventAdapter::KEY_V)
+        {
+            if (env->viewer->isRecording())
+                env->viewer->pauseRecording();
+            else
+                env->viewer->record("img");
         }
     }
     return false;
