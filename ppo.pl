@@ -192,7 +192,6 @@ package Buffer {
 }
 
 use Math::Trig ();
-use GD;
 use File::Slurp;
 use PDL;
 use FindBin;
