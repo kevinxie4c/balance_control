@@ -7,6 +7,7 @@
 #include "CharacterEnv.h"
 #include "MimicEnv.h"
 #include "SimpleEnv.h"
+#include "MomentumCtrlEnv.h"
 #include "CustomEventHandler.h"
 
 using namespace std;
@@ -25,6 +26,8 @@ CharacterEnv* CharacterEnv::makeEnv(const char *cfgFilename)
         env = new MimicEnv(cfgFilename);
     else if (json["env"] == "simple")
         env = new SimpleEnv(cfgFilename);
+    else if (json["env"] == "momentum-ctrl")
+        env = new MomentumCtrlEnv(cfgFilename);
     else
         throw runtime_error(string("unknow env: ") + json["env"].get<string>());
 
