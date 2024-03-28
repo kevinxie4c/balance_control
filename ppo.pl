@@ -21,6 +21,7 @@ my $imgdir = "img";
 my $num_threads = 4;
 my $sigma_begin = 0.1;
 my $sigma_end = 0.01;
+my $decay_factor = 0.001;
 my $steps_per_itr = 1024;
 my $num_itrs = 5000;
 my $mini_batch_size = 256;
@@ -36,6 +37,7 @@ GetOptions(
     'i|save_interval=i'    => \$save_interval,
     'n|num_threads=i'      => \$num_threads,
     'm|mini_batch_size=i'  => \$mini_batch_size,
+    'd|decay_factor=f'     => \$decay_factor,
     'B|sigma_begin=f'      => \$sigma_begin,
     'E|sigma_end=f'        => \$sigma_end,
     'N|num_itrs=i'         => \$num_itrs,
@@ -253,7 +255,9 @@ package ActorModel {
                 #$self->dense_mu(nn->Dense($action_size, in_units => $prev_size, activation => 'tanh'));
                 $self->dense_mu(nn->Dense($action_size, in_units => $prev_size));
                 #$self->dense_sigma(nn->Dense($action_size, in_units => $prev_size, activation => 'softrelu'));
-                $self->logstd(mx->gluon->Parameter('logstd', shape => $action_size));
+                $self->params->get('logstd', shape => $action_size);
+                $self->logstd($self->params->get('logstd')); # work for perl version of mxnet
+                #$self->logstd(mx->gluon->Parameter('logstd', shape => $action_size)); # only work for python version of mxnet
             });
     }
 
@@ -352,7 +356,6 @@ my $lam = 0.97;
 my $target_kl = 0.01;
 my $policy_learning_rate = 1e-3;
 my $value_function_learning_rate = 1e-2;
-my $decay_factor = 0.001;
 my $actor_net = ActorModel->new(sizes => [64, 64],  activation => 'relu');
 #print $actor_net;
 my $critic_net = mlp([64, 64, 1], 'relu');
@@ -651,8 +654,9 @@ for my $itr (1 .. $num_itrs) {
     $all_return_buffer = reorder($all_return_buffer, $indices);
     $all_logprobability_buffer = reorder($all_logprobability_buffer, $indices);
 
-    $policy_optimizer->set_learning_rate($policy_learning_rate / (1 + $decay_factor * ($itr - 1)));
-    $value_optimizer->set_learning_rate($value_function_learning_rate / (1 + $decay_factor * ($itr - 1)));
+    my $decay_frac = 1.0 / (1 + $decay_factor * ($itr - 1));
+    $policy_optimizer->set_learning_rate($policy_learning_rate * $decay_frac);
+    $value_optimizer->set_learning_rate($value_function_learning_rate * $decay_frac);
     #print $policy_optimizer->_optimizer->lr, " ", $value_optimizer->_optimizer->lr, "\n";
 
     my $loss_sum = 0;
@@ -715,7 +719,8 @@ POLICY_LOOP:
         $observation = $state_normalizer->normalize($observation, 0);
     }
 
-    print "Itr: $itr. Sigma: $g_sigma. Mean Return: ", $sum_return / $num_episodes, ". Mean Length: ", $sum_length / $num_episodes, ". Test Return: $test_return. Test Length: $test_length. Policy Loss: ", $policy_loss->aspdl->sclr, ". Value Loss: ", $value_loss->aspdl->sclr, ". Time: $sim_time, $train_time\n";
+    print "Itr: $itr. Sigma: $g_sigma. Mean Return: ", $sum_return / $num_episodes, ". Mean Length: ", $sum_length / $num_episodes, ". Test Return: $test_return. Test Length: $test_length. Policy Loss: ", $policy_loss->aspdl->sclr, ". Value Loss: ", $value_loss->aspdl->sclr, ". Decay_frac: $decay_frac. Time: $sim_time, $train_time\n";
+    print $actor_net->logstd->data->aspdl, "\n";
     print $f_ret $sum_return / $num_episodes, " ", $sum_length / $num_episodes, " $test_return $test_length\n";
 
     if ($itr % $save_interval == 0) {
