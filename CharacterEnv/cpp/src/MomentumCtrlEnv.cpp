@@ -108,6 +108,9 @@ void MomentumCtrlEnv::updateState()
     state << skeleton->getPositions(), skeleton->getVelocities();
     Vector3d c_r = skeleton->getRootBodyNode()->getCOM();
     Vector3d com = skeleton->getCOM();
-    done = abs(c_r.x()) > 0.1;
-    reward = exp(-abs(c_r.x())) + exp(-abs(com.x() - c_r.x()));
+    done = abs(c_r.x()) > 0.1 || c_r.y() > 0.2;
+    //cout << exp(-10 * abs(c_r.x())) << " " << exp(-10 * abs(com.x() - c_r.x())) << " " << exp(-action.norm()) << endl;
+    reward = exp(-10 * abs(c_r.x())) + exp(-10 * abs(com.x() - c_r.x())) + exp(-action.norm());
+    //cout << exp(-skeleton->getPositions().norm()) << endl;
+    //reward = exp(-skeleton->getPositions().norm()) + exp(-action.norm());
 }
