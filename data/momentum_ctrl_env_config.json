@@ -1,6 +1,6 @@
 {
     "env": "momentum-ctrl",
-    "character": "data/hopper.json",
+    "character": "data/hopper_arms.json",
     "camera": {
         "eye": [0, 0, -5],
         "center": [0, 1, 0],
@@ -8,7 +8,7 @@
     },
     "friction_coeff": 1.0,
     "restitution_coeff": 0.0,
-    "kp": "data/momentum_ctrl_env_kp.txt",
-    "kd": "data/momentum_ctrl_env_kd.txt",
-    "scales": "data/momentum_ctrl_env_scales.txt"
+    "kp": "data/hopper_arms_kp.txt",
+    "kd": "data/hopper_arms_kd.txt",
+    "scales": "data/hopper_arms_scales.txt"
 }

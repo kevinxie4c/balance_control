@@ -1,3 +1,4 @@
+#include <cmath>
 #include <dart/collision/bullet/BulletCollisionDetector.hpp>
 #include <dart/collision/ode/OdeCollisionDetector.hpp>
 #include "SimCharacter.h"
@@ -77,6 +78,7 @@ void MomentumCtrlEnv::reset()
 void MomentumCtrlEnv::step()
 {
     VectorXd ref = (action.array() * scales.array()).matrix();
+    //VectorXd ref = (skeleton->getPositions() + (action.array() * scales.array()).matrix());
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
         // stable PD
@@ -97,6 +99,11 @@ void MomentumCtrlEnv::step()
         VectorXd force = p + d;
         */
 
+        double rem = fmod(world->getTime(), 5.0);
+        if (rem >= 4.0 && rem < 4.2)
+        {
+            skeleton->getBodyNode(2)->addExtForce(Vector3d(-10, 0, 0));
+        }
         skeleton->setForces(force);
         world->step();
     }
