@@ -2,7 +2,7 @@
     "env": "momentum-ctrl",
     "character": "data/spinner.json",
     "camera": {
-        "eye": [0, 0, -5],
+        "eye": [0, 0, 5],
         "center": [0, 1, 0],
         "up": [0, 1, 0]
     },

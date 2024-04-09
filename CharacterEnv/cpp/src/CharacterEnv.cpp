@@ -84,7 +84,7 @@ void CharacterEnv::create_viewer()
     viewer = new dart::gui::osg::ImGuiViewer(osg::Vec4(0.0, 0.5, 1.0, 1.0));
     viewer->addWorldNode(worldNode.get());
     viewer->getCameraManipulator()->setHomePosition(eye, center, up);
-    viewer->switchHeadlights(false);
+    viewer->switchHeadlights(true);
     viewer->setUpwardsDirection(up);
     viewer->addEventHandler(new CustomEventHandler(this));
     viewer->allowSimulation(false);

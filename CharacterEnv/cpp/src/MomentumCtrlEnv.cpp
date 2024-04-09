@@ -59,7 +59,8 @@ MomentumCtrlEnv::MomentumCtrlEnv(const char *cfgFilename)
     mkd.diagonal() = kd;
 
     scales = readVectorXdFrom(json["scales"]);
-    state = VectorXd(skeleton->getNumDofs() * 2);
+    //state = VectorXd(skeleton->getNumDofs() * 2);
+    state = VectorXd(5); // theta1, cos(theta2), sin(theta2), dtheta1, dtheta2
     action = VectorXd(skeleton->getNumDofs());
 
     reset();
@@ -81,6 +82,8 @@ void MomentumCtrlEnv::step()
     VectorXd ref = (skeleton->getPositions() + (action.array() * scales.array()).matrix());
     vector<BodyNode*> bns = skeleton->getBodyNodes();
     fallen = false;
+    Vector3d L_prev = bns[2]->getAngularMomentum(); // angular momentum of the dist wrt (0, 0, 0)
+    double t_prev = world->getTime();
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
         // stable PD
@@ -101,11 +104,11 @@ void MomentumCtrlEnv::step()
         VectorXd force = p + d;
         */
 
-        //double rem = fmod(world->getTime(), 5.0);
+        //double rem = fmod(world->getTime(), 10.0);
         //if (rem >= 4.0 && rem < 4.2)
-        //{
-        //    skeleton->getBodyNode(2)->addExtForce(Vector3d(-10, 0, 0));
-        //}
+        //    skeleton->getBodyNode(2)->addExtForce(Vector3d(-500, 0, 0));
+        //else if (rem >= 9.0 && rem < 9.2)
+        //    skeleton->getBodyNode(2)->addExtForce(Vector3d(500, 0, 0));
         skeleton->setForces(force);
         world->step();
         dart::collision::CollisionResult result = world->getLastCollisionResult();
@@ -121,12 +124,45 @@ void MomentumCtrlEnv::step()
 
 void MomentumCtrlEnv::updateState()
 {
-    state << skeleton->getPositions(), skeleton->getVelocities();
+    //state << skeleton->getPositions(), skeleton->getVelocities();
+    VectorXd q = skeleton->getPositions();
+    state << q[0], cos(q[1]), cos(q[1]), skeleton->getVelocities();
     Vector3d c_r = skeleton->getRootBodyNode()->getCOM();
     Vector3d com = skeleton->getCOM();
-    done = abs(c_r.x()) > 0.1 || c_r.y() > 0.2 || fallen;
+    //done = abs(c_r.x()) > 0.1 || c_r.y() > 0.2 || fallen;
+    done = fallen;
+    vector<BodyNode*> bns = skeleton->getBodyNodes();
+    //Vector3d com = skeleton->getCOM();
+    //Vector3d v_com = skeleton->getCOMLinearVelocity();
+    //Vector3d L = Vector3d::Zero(); // angular momentum wrt com
+    //for (size_t i = 2; i < bns.size(); ++i)
+    //{
+    //    Vector3d com_i = bns->getCOM();
+    //    Vector3d v_com_i = bns->getCOMLinearVelocity();
+    //    Matrix3d I = bns->getInertia();
+    //    Matrix3d R = bns->getWorldTransform().linear();
+    //    Matrix3d omega = bns->getAngularVelocity();
+    //    L += (com_i - com).cross(v_com_i - v_com) + R * I * R.transpose() * omega;
+    //}
+    Vector3d L = bns[2]->getAngularMomentum(); // angular momentum of the dist wrt (0, 0, 0)
+    double t = world->getTime();
+    if (t == t_prev)
+        t = t_prev + 1;
+    Vector3d dL = (L - L_prev) / (t - t_prev);
+    Vector3d g = world->getGravity();
+    double m = skeleton->getMass();
+    //Vector3d com = skeleton->getCOM();
+    Vector3d tau = com.cross(m * g);
+    //cout << "com: " << com.transpose() << endl;
+    //cout << "mg: " << (m * g).transpose() << endl;
     //cout << exp(-10 * abs(c_r.x())) << " " << exp(-10 * abs(com.x() - c_r.x())) << " " << exp(-action.norm()) << endl;
-    reward = exp(-10 * abs(c_r.x())) + exp(-10 * abs(com.x() - c_r.x())) + exp(-action.norm());
+    //reward = exp(-10 * abs(c_r.x())) + exp(-10 * abs(com.x() - c_r.x())) + exp(-action.norm());
     //cout << exp(-skeleton->getPositions().norm()) << endl;
     //reward = exp(-skeleton->getPositions().norm()) + exp(-action.norm());
+    //reward = exp(-(dL - tau).norm()) + exp(-action.norm());
+    reward = exp(-1 * (dL - tau).norm());
+    //cout << "dL: " << dL.z() << endl;
+    //cout << "tau: " << tau.z() << endl;
+    //cout << exp(-(dL - tau).norm()) << endl;
 }
+
