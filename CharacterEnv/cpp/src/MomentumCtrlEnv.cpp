@@ -79,6 +79,8 @@ void MomentumCtrlEnv::step()
 {
     //VectorXd ref = (action.array() * scales.array()).matrix();
     VectorXd ref = (skeleton->getPositions() + (action.array() * scales.array()).matrix());
+    vector<BodyNode*> bns = skeleton->getBodyNodes();
+    fallen = false;
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
         // stable PD
@@ -106,6 +108,13 @@ void MomentumCtrlEnv::step()
         //}
         skeleton->setForces(force);
         world->step();
+        dart::collision::CollisionResult result = world->getLastCollisionResult();
+        for (int j = 1; j < bns.size(); ++j)
+            if (result.inCollision(bns[j]))
+            {
+                fallen = true;
+                break;
+            }
     }
     updateState();
 }
@@ -115,7 +124,7 @@ void MomentumCtrlEnv::updateState()
     state << skeleton->getPositions(), skeleton->getVelocities();
     Vector3d c_r = skeleton->getRootBodyNode()->getCOM();
     Vector3d com = skeleton->getCOM();
-    done = abs(c_r.x()) > 0.1 || c_r.y() > 0.2;
+    done = abs(c_r.x()) > 0.1 || c_r.y() > 0.2 || fallen;
     //cout << exp(-10 * abs(c_r.x())) << " " << exp(-10 * abs(com.x() - c_r.x())) << " " << exp(-action.norm()) << endl;
     reward = exp(-10 * abs(c_r.x())) + exp(-10 * abs(com.x() - c_r.x())) + exp(-action.norm());
     //cout << exp(-skeleton->getPositions().norm()) << endl;
