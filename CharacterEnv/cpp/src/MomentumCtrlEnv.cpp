@@ -1,4 +1,5 @@
 #include <cmath>
+#include <fstream>
 #include <dart/collision/bullet/BulletCollisionDetector.hpp>
 #include <dart/collision/ode/OdeCollisionDetector.hpp>
 #include "SimCharacter.h"
@@ -63,6 +64,8 @@ MomentumCtrlEnv::MomentumCtrlEnv(const char *cfgFilename)
     state = VectorXd(5); // theta1, cos(theta2), sin(theta2), dtheta1, dtheta2
     action = VectorXd(skeleton->getNumDofs());
 
+    f_dL.open("dL.txt");
+
     reset();
 }
 
@@ -104,11 +107,11 @@ void MomentumCtrlEnv::step()
         VectorXd force = p + d;
         */
 
-        //double rem = fmod(world->getTime(), 10.0);
-        //if (rem >= 4.0 && rem < 4.2)
-        //    skeleton->getBodyNode(2)->addExtForce(Vector3d(-500, 0, 0));
-        //else if (rem >= 9.0 && rem < 9.2)
-        //    skeleton->getBodyNode(2)->addExtForce(Vector3d(500, 0, 0));
+        double rem = fmod(world->getTime(), 10.0);
+        if (rem >= 1.0 && rem < 1.2)
+            skeleton->getBodyNode(2)->addExtForce(Vector3d(-200, 0, 0));
+        else if (rem >= 6.0 && rem < 6.2)
+            skeleton->getBodyNode(2)->addExtForce(Vector3d(200, 0, 0));
         skeleton->setForces(force);
         world->step();
         dart::collision::CollisionResult result = world->getLastCollisionResult();
@@ -144,7 +147,7 @@ void MomentumCtrlEnv::updateState()
     //    Matrix3d omega = bns->getAngularVelocity();
     //    L += (com_i - com).cross(v_com_i - v_com) + R * I * R.transpose() * omega;
     //}
-    Vector3d L = bns[2]->getAngularMomentum(); // angular momentum of the dist wrt (0, 0, 0)
+    Vector3d L = bns[2]->getAngularMomentum(); // angular momentum of the disc wrt (0, 0, 0)
     double t = world->getTime();
     if (t == t_prev)
         t = t_prev + 1;
@@ -160,9 +163,11 @@ void MomentumCtrlEnv::updateState()
     //cout << exp(-skeleton->getPositions().norm()) << endl;
     //reward = exp(-skeleton->getPositions().norm()) + exp(-action.norm());
     //reward = exp(-(dL - tau).norm()) + exp(-action.norm());
-    reward = exp(-1 * (dL - tau).norm());
+    //reward = 10 * exp(-1 * (dL - tau).norm());
+    reward = bns[2]->getCOM().y();
     //cout << "dL: " << dL.z() << endl;
     //cout << "tau: " << tau.z() << endl;
     //cout << exp(-(dL - tau).norm()) << endl;
+    f_dL << dL.z() << " " << tau.z() << endl;
 }
 

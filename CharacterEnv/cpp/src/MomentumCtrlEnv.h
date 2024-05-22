@@ -25,6 +25,7 @@ class MomentumCtrlEnv: public CharacterEnv
         bool fallen = false;
         Eigen::Vector3d L_prev;
         double t_prev;
+        std::ofstream f_dL;
 };
 
 #endif
