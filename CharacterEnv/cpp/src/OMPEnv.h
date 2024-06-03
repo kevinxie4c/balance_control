@@ -12,8 +12,13 @@ class OMPEnv
 
 	OMPEnv(const char *cfgFilename, size_t num_threads);
 	void reset();
-	void step(size_t id);
+	void step();
 	~OMPEnv();
+
+        size_t num_threads;
+        std::vector<Eigen::VectorXd> positions;
+        std::vector<Eigen::VectorXd> velocities;
+        std::vector<Eigen::VectorXd> actions;
 };
 
 #endif

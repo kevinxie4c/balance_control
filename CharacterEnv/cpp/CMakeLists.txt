@@ -20,6 +20,6 @@ message("OPENSCENEGRAPH_INCLUDE_DIRS: ${OPENSCENEGRAPH_INCLUDE_DIRS}")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG")
 
-add_library(CharacterEnv STATIC src/CharacterEnv.cpp src/MimicEnv.cpp src/SimpleEnv.cpp src/MomentumCtrlEnv.cpp src/SimCharacter.cpp src/MathUtil.cpp src/IOUtil.cpp src/ParallelEnv.cpp src/CustomEventHandler.cpp)
+add_library(CharacterEnv STATIC src/CharacterEnv.cpp src/MimicEnv.cpp src/SimpleEnv.cpp src/MomentumCtrlEnv.cpp src/SimCharacter.cpp src/MathUtil.cpp src/IOUtil.cpp src/ParallelEnv.cpp src/CustomEventHandler.cpp src/OMPEnv.cpp)
 #target_link_libraries(CharacterEnv stdc++ dart assimp boost_system)
 target_link_libraries(CharacterEnv nlohmann_json::nlohmann_json Eigen3::Eigen OpenSceneGraph)

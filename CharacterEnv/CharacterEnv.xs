@@ -3,6 +3,7 @@
 // Perl header files define some macros that conflict with the C++ header files. So put the header here.
 #include "CharacterEnv.h"
 #include "ParallelEnv.h"
+#include "OMPEnv.h"
 
 
 #ifdef __cplusplus
@@ -251,3 +252,19 @@ ParallelEnv::step(size_t id)
 
 void
 ParallelEnv::print_task_done()
+
+
+MODULE = CharacterEnv		PACKAGE = OMPEnv
+
+OMPEnv *
+OMPEnv::new(const char *cfgFilename, size_t num_threads)
+CODE:
+    RETVAL = new OMPEnv(cfgFilename, num_threads);
+OUTPUT:
+    RETVAL
+
+
+MODULE = CharacterEnv		PACKAGE = OMPEnvPtr
+
+void
+OMPEnv::DESTROY()

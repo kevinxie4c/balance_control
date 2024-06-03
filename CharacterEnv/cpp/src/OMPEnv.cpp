@@ -21,6 +21,21 @@ void OMPEnv::reset()
 }
 
 
-void ParallelEnv::step(size_t id)
+void OMPEnv::step()
 {
+    #pragma omp for
+    for (size_t i = 0; i < positions.size(); ++i)
+    {
+        size_t id = i % num_threads;
+        envs[id]->skeleton->setPositions(positions[i]);
+        envs[id]->skeleton->setVelocities(velocities[i]);
+        envs[id]->action = actions[i];
+        envs[id]->step();
+    }
+}
+
+OMPEnv::~OMPEnv()
+{
+    for (CharacterEnv* ptr: envs)
+	delete ptr;
 }
