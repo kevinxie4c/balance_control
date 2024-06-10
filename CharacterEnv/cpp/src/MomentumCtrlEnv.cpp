@@ -129,7 +129,7 @@ void MomentumCtrlEnv::updateState()
 {
     //state << skeleton->getPositions(), skeleton->getVelocities();
     VectorXd q = skeleton->getPositions();
-    state << q[0], cos(q[1]), cos(q[1]), skeleton->getVelocities();
+    state << q[0], cos(q[1]), sin(q[1]), skeleton->getVelocities();
     Vector3d c_r = skeleton->getRootBodyNode()->getCOM();
     Vector3d com = skeleton->getCOM();
     //done = abs(c_r.x()) > 0.1 || c_r.y() > 0.2 || fallen;
