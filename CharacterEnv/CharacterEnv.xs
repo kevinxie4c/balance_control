@@ -206,6 +206,20 @@ CODE:
     RETVAL = THIS->playing;
 OUTPUT:
     RETVAL
+
+
+void
+CharacterEnv::set_jacobian_row(size_t row_num, doubleArray * array, ...)
+CODE:
+    if (ix_array == THIS->jacobian.cols())
+    {
+        for (size_t i = 0; i < (size_t)ix_array; ++i)
+            THIS->jacobian(row_num, i) = array[i];
+    }
+    else
+        croak("CharacterEnv::set_jacobian_row(row_num, ...) -- incorrect number of arguments");
+CLEANUP:
+    free(array);
     
 
 MODULE = CharacterEnv		PACKAGE = ParallelEnv

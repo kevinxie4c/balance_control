@@ -26,6 +26,8 @@ class MomentumCtrlEnv: public CharacterEnv
         Eigen::Vector3d L_prev;
         double t_prev;
         std::ofstream f_dL;
+
+        bool implicit = false;
 };
 
 #endif

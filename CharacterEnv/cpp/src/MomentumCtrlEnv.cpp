@@ -61,8 +61,11 @@ MomentumCtrlEnv::MomentumCtrlEnv(const char *cfgFilename)
 
     scales = readVectorXdFrom(json["scales"]);
     //state = VectorXd(skeleton->getNumDofs() * 2);
-    state = VectorXd(5); // theta1, cos(theta2), sin(theta2), dtheta1, dtheta2
+    //state = VectorXd(5); // theta1, cos(theta2), sin(theta2), dtheta1, dtheta2
+    state = VectorXd(3); // theta1, cos(theta2), sin(theta2)
+    //state = VectorXd(1);
     action = VectorXd(skeleton->getNumDofs());
+    jacobian = MatrixXd(action.size(), state.size());
 
     f_dL.open("dL.txt");
 
@@ -81,32 +84,13 @@ void MomentumCtrlEnv::reset()
 
 void MomentumCtrlEnv::step()
 {
-    //VectorXd ref = (action.array() * scales.array()).matrix();
-    VectorXd ref = (skeleton->getPositions() + (action.array() * scales.array()).matrix());
+    VectorXd force = (action.array() * scales.array()).matrix();
     vector<BodyNode*> bns = skeleton->getBodyNodes();
     fallen = false;
     Vector3d L_prev = bns[2]->getAngularMomentum(); // angular momentum of the dist wrt (0, 0, 0)
     double t_prev = world->getTime();
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
-        // stable PD
-        VectorXd q = skeleton->getPositions();
-        VectorXd dq = skeleton->getVelocities();
-        MatrixXd invM = (skeleton->getMassMatrix() + mkd * skeleton->getTimeStep()).inverse();
-        VectorXd p = -mkp * skeleton->getPositionDifferences(q + dq * skeleton->getTimeStep(), ref);
-        VectorXd d = -mkd * dq;
-        VectorXd qddot = invM * (-skeleton->getCoriolisAndGravityForces() + p + d + skeleton->getConstraintForces());
-        VectorXd force = p + d - mkd * qddot * world->getTimeStep();
-
-        // PD
-        /*
-        VectorXd q = skeleton->getPositions();
-        VectorXd dq = skeleton->getVelocities();
-        VectorXd p = -mkp * skeleton->getPositionDifferences(q, ref);
-        VectorXd d = -mkd * dq;
-        VectorXd force = p + d;
-        */
-
         double rem = fmod(world->getTime(), 10.0);
         if (rem >= 1.0 && rem < 1.2)
             skeleton->getBodyNode(2)->addExtForce(Vector3d(-200, 0, 0));
@@ -129,7 +113,8 @@ void MomentumCtrlEnv::updateState()
 {
     //state << skeleton->getPositions(), skeleton->getVelocities();
     VectorXd q = skeleton->getPositions();
-    state << q[0], cos(q[1]), cos(q[1]), skeleton->getVelocities();
+    //state << q[0], cos(q[1]), sin(q[1]), skeleton->getVelocities();
+    state << q[0], cos(q[1]), sin(q[1]);
     Vector3d c_r = skeleton->getRootBodyNode()->getCOM();
     Vector3d com = skeleton->getCOM();
     //done = abs(c_r.x()) > 0.1 || c_r.y() > 0.2 || fallen;
@@ -156,6 +141,7 @@ void MomentumCtrlEnv::updateState()
     double m = skeleton->getMass();
     //Vector3d com = skeleton->getCOM();
     Vector3d tau = com.cross(m * g);
+    //state << tau.z();
     //cout << "com: " << com.transpose() << endl;
     //cout << "mg: " << (m * g).transpose() << endl;
     //cout << exp(-10 * abs(c_r.x())) << " " << exp(-10 * abs(com.x() - c_r.x())) << " " << exp(-action.norm()) << endl;

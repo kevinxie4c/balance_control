@@ -38,6 +38,8 @@ class CharacterEnv
         bool enableRSI = false;
         osg::Vec3 eye, center, up;
         bool playing = false;
+
+        Eigen::MatrixXd jacobian;
 };
 
 #endif

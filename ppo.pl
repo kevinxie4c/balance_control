@@ -462,9 +462,23 @@ if ($play_policy) {
             $observation = $state_normalizer->normalize($observation, 0);
             print $fout join(' ', $env->get_positions_list), "\n";
             #print "state: ", $observation->aspdl, "\n";
+            $observation->attach_grad;
+            my $action;
+            for my $idx (0 .. $action_size - 1) {
+                my $mask = mx->nd->zeros([$action_size]);
+                autograd->record(sub {
+                        my ($mu, $sigma) = $actor_net->($observation);
+                        #$action = $mu;   # deterministic
+                        $mask->slice($idx) .= 1;
+                        $action = mx->nd->dot($mu, $mask);
+                    });
+                #my $action = $actor_net->choose_action($observation);
+                $action->backward;
+                #print("grad: ", $observation->grad->aspdl);
+                $env->set_jacobian_row($idx, $observation->grad->aspdl->list);
+            }
             my ($mu, $sigma) = $actor_net->($observation);
-            #my $action = $actor_net->choose_action($observation);
-            my $action = $mu;   # deterministic
+            $action = $mu;
             $action = $action->clip(-1, 1);
             print $f_action join(' ', $action->aspdl->list), "\n";
             #print "action: ", $action->aspdl, "\n";
