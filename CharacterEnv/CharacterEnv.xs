@@ -209,12 +209,12 @@ OUTPUT:
 
 
 void
-CharacterEnv::set_jacobian_row(size_t row_num, doubleArray * array, ...)
+CharacterEnv::set_policy_jacobian_row(size_t row_num, doubleArray * array, ...)
 CODE:
-    if (ix_array == THIS->jacobian.cols())
+    if (ix_array == THIS->policyJacobian.cols())
     {
         for (size_t i = 0; i < (size_t)ix_array; ++i)
-            THIS->jacobian(row_num, i) = array[i];
+            THIS->policyJacobian(row_num, i) = array[i];
     }
     else
         croak("CharacterEnv::set_jacobian_row(row_num, ...) -- incorrect number of arguments");

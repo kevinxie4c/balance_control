@@ -475,7 +475,7 @@ if ($play_policy) {
                 #my $action = $actor_net->choose_action($observation);
                 $action->backward;
                 #print("grad: ", $observation->grad->aspdl);
-                $env->set_jacobian_row($idx, $observation->grad->aspdl->list);
+                $env->set_policy_jacobian_row($idx, $observation->grad->aspdl->list);
             }
             my ($mu, $sigma) = $actor_net->($observation);
             $action = $mu;

@@ -65,7 +65,7 @@ MomentumCtrlEnv::MomentumCtrlEnv(const char *cfgFilename)
     state = VectorXd(3); // theta1, cos(theta2), sin(theta2)
     //state = VectorXd(1);
     action = VectorXd(skeleton->getNumDofs());
-    jacobian = MatrixXd(action.size(), state.size());
+    policyJacobian = MatrixXd(action.size(), state.size());
 
     f_dL.open("dL.txt");
 

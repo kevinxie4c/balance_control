@@ -39,7 +39,7 @@ class CharacterEnv
         osg::Vec3 eye, center, up;
         bool playing = false;
 
-        Eigen::MatrixXd jacobian;
+        Eigen::MatrixXd policyJacobian;
 };
 
 #endif
