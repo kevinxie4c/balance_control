@@ -40,6 +40,7 @@ class CharacterEnv
         bool playing = false;
 
         Eigen::MatrixXd policyJacobian;
+        Eigen::VectorXd normalizerMean, normalizerStd;
 };
 
 #endif

@@ -9,6 +9,7 @@ class MomentumCtrlEnv: public CharacterEnv
 {
     public:
         MomentumCtrlEnv(const char *cfgFilename);
+        ~MomentumCtrlEnv();
         void reset() override;
         void step() override;
         void updateState();
@@ -26,6 +27,7 @@ class MomentumCtrlEnv: public CharacterEnv
         Eigen::Vector3d L_prev;
         double t_prev;
         std::ofstream f_dL;
+        std::ofstream f_forces;
 
         bool implicit = false;
 };

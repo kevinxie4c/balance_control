@@ -66,10 +66,19 @@ MomentumCtrlEnv::MomentumCtrlEnv(const char *cfgFilename)
     //state = VectorXd(1);
     action = VectorXd(skeleton->getNumDofs());
     policyJacobian = MatrixXd(action.size(), state.size());
+    normalizerMean = VectorXd(state.size());
+    normalizerStd = VectorXd(state.size());
 
     f_dL.open("dL.txt");
+    f_forces.open("forces.txt");
 
     reset();
+}
+
+MomentumCtrlEnv::~MomentumCtrlEnv()
+{
+    f_dL.close();
+    f_forces.close();
 }
 
 void MomentumCtrlEnv::reset()
@@ -85,6 +94,13 @@ void MomentumCtrlEnv::reset()
 void MomentumCtrlEnv::step()
 {
     VectorXd force = (action.array() * scales.array()).matrix();
+    VectorXd q = skeleton->getPositions();
+    VectorXd dq = skeleton->getVelocities();
+    VectorXd ds(state.size());
+    ds << dq[0], -sin(q[1]) * dq[1], cos(q[1]) * dq[1];
+    ds = (ds.array() / normalizerStd.array()).matrix();
+    VectorXd df = ((policyJacobian * ds).array() * scales.array()).matrix();
+    double dt = 1.0 / forceRate;
     vector<BodyNode*> bns = skeleton->getBodyNodes();
     fallen = false;
     Vector3d L_prev = bns[2]->getAngularMomentum(); // angular momentum of the dist wrt (0, 0, 0)
@@ -96,7 +112,9 @@ void MomentumCtrlEnv::step()
             skeleton->getBodyNode(2)->addExtForce(Vector3d(-200, 0, 0));
         else if (rem >= 6.0 && rem < 6.2)
             skeleton->getBodyNode(2)->addExtForce(Vector3d(200, 0, 0));
-        skeleton->setForces(force);
+        VectorXd f = force + df * dt * i;
+        f_forces << f.transpose() << endl;
+        skeleton->setForces(f);
         world->step();
         dart::collision::CollisionResult result = world->getLastCollisionResult();
         for (int j = 1; j < bns.size(); ++j)

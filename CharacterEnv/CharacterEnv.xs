@@ -220,6 +220,32 @@ CODE:
         croak("CharacterEnv::set_jacobian_row(row_num, ...) -- incorrect number of arguments");
 CLEANUP:
     free(array);
+
+
+void
+CharacterEnv::set_normalizer_mean(doubleArray * array, ...)
+CODE:
+    if (ix_array == THIS->normalizerMean.size())
+    {
+	memcpy(THIS->normalizerMean.data(), array, ix_array * sizeof(double));
+    }
+    else
+	croak("CharacterEnv::set_normalizer_mean(...) -- incorrect number of arguments");
+CLEANUP:
+    free(array);
+
+
+void
+CharacterEnv::set_normalizer_std(doubleArray * array, ...)
+CODE:
+    if (ix_array == THIS->normalizerStd.size())
+    {
+	memcpy(THIS->normalizerStd.data(), array, ix_array * sizeof(double));
+    }
+    else
+	croak("CharacterEnv::set_normalizer_std(...) -- incorrect number of arguments");
+CLEANUP:
+    free(array);
     
 
 MODULE = CharacterEnv		PACKAGE = ParallelEnv

@@ -462,6 +462,8 @@ if ($play_policy) {
             $observation = $state_normalizer->normalize($observation, 0);
             print $fout join(' ', $env->get_positions_list), "\n";
             #print "state: ", $observation->aspdl, "\n";
+            $env->set_normalizer_mean($state_normalizer->{ms}{mean}->aspdl->list);
+            $env->set_normalizer_std($state_normalizer->{ms}{std}->aspdl->list);
             $observation->attach_grad;
             my $action;
             for my $idx (0 .. $action_size - 1) {
