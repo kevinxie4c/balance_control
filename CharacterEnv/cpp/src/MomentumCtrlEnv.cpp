@@ -61,8 +61,8 @@ MomentumCtrlEnv::MomentumCtrlEnv(const char *cfgFilename)
 
     scales = readVectorXdFrom(json["scales"]);
     //state = VectorXd(skeleton->getNumDofs() * 2);
-    //state = VectorXd(5); // theta1, cos(theta2), sin(theta2), dtheta1, dtheta2
-    state = VectorXd(3); // theta1, cos(theta2), sin(theta2)
+    state = VectorXd(5); // theta1, cos(theta2), sin(theta2), dtheta1, dtheta2
+    //state = VectorXd(3); // theta1, cos(theta2), sin(theta2)
     //state = VectorXd(1);
     action = VectorXd(skeleton->getNumDofs());
     policyJacobian = MatrixXd(action.size(), state.size());
@@ -96,10 +96,13 @@ void MomentumCtrlEnv::step()
     VectorXd force = (action.array() * scales.array()).matrix();
     VectorXd q = skeleton->getPositions();
     VectorXd dq = skeleton->getVelocities();
+    VectorXd ddq = skeleton->getAccelerations();
     VectorXd ds(state.size());
-    ds << dq[0], -sin(q[1]) * dq[1], cos(q[1]) * dq[1];
+    //ds << dq[0], -sin(q[1]) * dq[1], cos(q[1]) * dq[1];
+    ds << dq[0], -sin(q[1]) * dq[1], cos(q[1]) * dq[1], ddq[0], ddq[1];
     ds = (ds.array() / (normalizerStd.array() + 1e-8)).matrix();
     VectorXd df = ((policyJacobian * ds).array() * scales.array()).matrix();
+    df.setZero();
     double dt = 1.0 / forceRate;
     vector<BodyNode*> bns = skeleton->getBodyNodes();
     fallen = false;
@@ -131,8 +134,8 @@ void MomentumCtrlEnv::updateState()
 {
     //state << skeleton->getPositions(), skeleton->getVelocities();
     VectorXd q = skeleton->getPositions();
-    //state << q[0], cos(q[1]), sin(q[1]), skeleton->getVelocities();
-    state << q[0], cos(q[1]), sin(q[1]);
+    state << q[0], cos(q[1]), sin(q[1]), skeleton->getVelocities();
+    //state << q[0], cos(q[1]), sin(q[1]);
     Vector3d c_r = skeleton->getRootBodyNode()->getCOM();
     Vector3d com = skeleton->getCOM();
     //done = abs(c_r.x()) > 0.1 || c_r.y() > 0.2 || fallen;
