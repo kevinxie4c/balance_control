@@ -69,6 +69,11 @@ MomentumCtrlEnv::MomentumCtrlEnv(const char *cfgFilename)
     reset();
 }
 
+MomentumCtrlEnv::~MomentumCtrlEnv()
+{
+    f_dL.close();
+}
+
 void MomentumCtrlEnv::reset()
 {
     world->reset();
