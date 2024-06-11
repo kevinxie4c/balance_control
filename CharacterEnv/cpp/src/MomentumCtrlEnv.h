@@ -9,6 +9,7 @@ class MomentumCtrlEnv: public CharacterEnv
 {
     public:
         MomentumCtrlEnv(const char *cfgFilename);
+        ~MomentumCtrlEnv();
         void reset() override;
         void step() override;
         void updateState();
