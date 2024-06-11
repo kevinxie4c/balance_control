@@ -425,6 +425,25 @@ sub train_value_function {
     return $value_loss;
 }
 
+sub set_policy_jacobian {
+    my ($env, $observation) = @_;
+    $observation->attach_grad;
+    my $action;
+    for my $idx (0 .. $action_size - 1) {
+        my $mask = mx->nd->zeros([$action_size]);
+        autograd->record(sub {
+                my ($mu, $sigma) = $actor_net->($observation);
+                #$action = $mu;   # deterministic
+                $mask->slice($idx) .= 1;
+                $action = mx->nd->dot($mu, $mask);
+            });
+        $action->backward;
+        #print("grad: ", $observation->grad->aspdl);
+        $env->set_policy_jacobian_row($idx, $observation->grad->aspdl->list);
+    }
+}
+
+
 #my $buffer = Buffer->new($state_size, $action_size, $steps_per_itr);
 my @buffers;
 for (1 .. $num_threads) {
@@ -464,23 +483,9 @@ if ($play_policy) {
             #print "state: ", $observation->aspdl, "\n";
             $env->set_normalizer_mean($state_normalizer->{ms}{mean}->aspdl->list);
             $env->set_normalizer_std($state_normalizer->{ms}{std}->aspdl->list);
-            $observation->attach_grad;
-            my $action;
-            for my $idx (0 .. $action_size - 1) {
-                my $mask = mx->nd->zeros([$action_size]);
-                autograd->record(sub {
-                        my ($mu, $sigma) = $actor_net->($observation);
-                        #$action = $mu;   # deterministic
-                        $mask->slice($idx) .= 1;
-                        $action = mx->nd->dot($mu, $mask);
-                    });
-                #my $action = $actor_net->choose_action($observation);
-                $action->backward;
-                #print("grad: ", $observation->grad->aspdl);
-                $env->set_policy_jacobian_row($idx, $observation->grad->aspdl->list);
-            }
+            set_policy_jacobian($env, $observation);
             my ($mu, $sigma) = $actor_net->($observation);
-            $action = $mu;
+            my $action = $mu;
             $action = $action->clip(-1, 1);
             print $f_action join(' ', $action->aspdl->list), "\n";
             #print "action: ", $action->aspdl, "\n";
@@ -610,6 +615,9 @@ for my $itr (1 .. $num_itrs) {
         $logprobability_t[$id] = $actor_net->log_prob($action[$id], $mu, $sigma)->aspdl->at(0, 0);
         #$action[$id] = $action[$id]->clip(-1, 1);
         $env->set_action_list(($action[$id]->clip(-1, 1) * $a_scale)->aspdl->list);
+        $env->set_normalizer_mean($state_normalizer->{ms}{mean}->aspdl->list);
+        $env->set_normalizer_std($state_normalizer->{ms}{std}->aspdl->list);
+        set_policy_jacobian($env, $observation[$id]);
         $para_env->step($id);
         $finished[$id] = 0;
         ++$total_steps;
@@ -731,6 +739,9 @@ POLICY_LOOP:
         my $action = $mu;   # deterministic
         $action = $action->clip(-1, 1);
         $env->set_action_list(($action * $a_scale)->aspdl->list);
+        $env->set_normalizer_mean($state_normalizer->{ms}{mean}->aspdl->list);
+        $env->set_normalizer_std($state_normalizer->{ms}{std}->aspdl->list);
+        set_policy_jacobian($env, $observation);
         $env->step;
         my $reward = $env->get_reward;
         $test_return += $acc_gamma * $reward;

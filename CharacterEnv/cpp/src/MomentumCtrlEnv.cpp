@@ -98,7 +98,7 @@ void MomentumCtrlEnv::step()
     VectorXd dq = skeleton->getVelocities();
     VectorXd ds(state.size());
     ds << dq[0], -sin(q[1]) * dq[1], cos(q[1]) * dq[1];
-    ds = (ds.array() / normalizerStd.array()).matrix();
+    ds = (ds.array() / (normalizerStd.array() + 1e-8)).matrix();
     VectorXd df = ((policyJacobian * ds).array() * scales.array()).matrix();
     double dt = 1.0 / forceRate;
     vector<BodyNode*> bns = skeleton->getBodyNodes();
