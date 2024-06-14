@@ -102,7 +102,7 @@ void MomentumCtrlEnv::step()
     ds << dq[0], -sin(q[1]) * dq[1], cos(q[1]) * dq[1], ddq[0], ddq[1];
     ds = (ds.array() / (normalizerStd.array() + 1e-8)).matrix();
     VectorXd df = ((policyJacobian * ds).array() * scales.array()).matrix();
-    df.setZero();
+    //df.setZero();
     double dt = 1.0 / forceRate;
     vector<BodyNode*> bns = skeleton->getBodyNodes();
     fallen = false;
