@@ -1,14 +1,14 @@
 {
     "env": "momentum-ctrl",
-    "character": "data/hopper.json",
+    "character": "data/spinner.json",
     "camera": {
-        "eye": [0, 0, -5],
+        "eye": [0, 0, 5],
         "center": [0, 1, 0],
         "up": [0, 1, 0]
     },
     "friction_coeff": 1.0,
     "restitution_coeff": 0.0,
-    "kp": "data/momentum_ctrl_env_kp.txt",
-    "kd": "data/momentum_ctrl_env_kd.txt",
-    "scales": "data/momentum_ctrl_env_scales.txt"
+    "kp": "data/spinner_kp.txt",
+    "kd": "data/spinner_kd.txt",
+    "scales": "data/spinner_scales.txt"
 }

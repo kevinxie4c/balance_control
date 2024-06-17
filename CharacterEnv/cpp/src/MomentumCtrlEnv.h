@@ -21,6 +21,11 @@ class MomentumCtrlEnv: public CharacterEnv
 
         Eigen::VectorXd kp, kd;
         Eigen::MatrixXd mkp, mkd;
+
+        bool fallen = false;
+        Eigen::Vector3d L_prev;
+        double t_prev;
+        std::ofstream f_dL;
 };
 
 #endif

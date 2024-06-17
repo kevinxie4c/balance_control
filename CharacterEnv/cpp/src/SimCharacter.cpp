@@ -76,6 +76,13 @@ void SimCharacter::createJoint(nlohmann::json json, dart::dynamics::BodyNodePtr 
 		std::cerr << "unknown axis: " + axis << std::endl;
 	    bn = skeleton->createJointAndBodyNodePair<RevoluteJoint>(parent, properties, BodyNode::AspectProperties(name)).second;
 	}
+        else if (type == "weld")
+        {
+            WeldJoint::Properties properties;
+	    properties.mName = name;
+	    properties.mT_ParentBodyToJoint.translation() = pos;
+	    bn = skeleton->createJointAndBodyNodePair<WeldJoint>(parent, properties, BodyNode::AspectProperties(name)).second;
+        }
 	if (json.contains("mass"))
 	    bn->setMass(json["mass"]);
 	if (json.contains("COM"))

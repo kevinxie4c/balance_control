@@ -1,3 +1,5 @@
+#include <cmath>
+#include <fstream>
 #include <dart/collision/bullet/BulletCollisionDetector.hpp>
 #include <dart/collision/ode/OdeCollisionDetector.hpp>
 #include "SimCharacter.h"
@@ -58,8 +60,11 @@ MomentumCtrlEnv::MomentumCtrlEnv(const char *cfgFilename)
     mkd.diagonal() = kd;
 
     scales = readVectorXdFrom(json["scales"]);
-    state = VectorXd(skeleton->getNumDofs() * 2);
+    //state = VectorXd(skeleton->getNumDofs() * 2);
+    state = VectorXd(5); // theta1, cos(theta2), sin(theta2), dtheta1, dtheta2
     action = VectorXd(skeleton->getNumDofs());
+
+    f_dL.open("dL.txt");
 
     reset();
 }
@@ -76,7 +81,12 @@ void MomentumCtrlEnv::reset()
 
 void MomentumCtrlEnv::step()
 {
-    VectorXd ref = (action.array() * scales.array()).matrix();
+    //VectorXd ref = (action.array() * scales.array()).matrix();
+    VectorXd ref = (skeleton->getPositions() + (action.array() * scales.array()).matrix());
+    vector<BodyNode*> bns = skeleton->getBodyNodes();
+    fallen = false;
+    Vector3d L_prev = bns[2]->getAngularMomentum(); // angular momentum of the dist wrt (0, 0, 0)
+    double t_prev = world->getTime();
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
         // stable PD
@@ -97,20 +107,67 @@ void MomentumCtrlEnv::step()
         VectorXd force = p + d;
         */
 
+        double rem = fmod(world->getTime(), 10.0);
+        if (rem >= 1.0 && rem < 1.2)
+            skeleton->getBodyNode(2)->addExtForce(Vector3d(-200, 0, 0));
+        else if (rem >= 6.0 && rem < 6.2)
+            skeleton->getBodyNode(2)->addExtForce(Vector3d(200, 0, 0));
         skeleton->setForces(force);
         world->step();
+        dart::collision::CollisionResult result = world->getLastCollisionResult();
+        for (int j = 1; j < bns.size(); ++j)
+            if (result.inCollision(bns[j]))
+            {
+                fallen = true;
+                break;
+            }
     }
     updateState();
 }
 
 void MomentumCtrlEnv::updateState()
 {
-    state << skeleton->getPositions(), skeleton->getVelocities();
+    //state << skeleton->getPositions(), skeleton->getVelocities();
+    VectorXd q = skeleton->getPositions();
+    state << q[0], cos(q[1]), sin(q[1]), skeleton->getVelocities();
     Vector3d c_r = skeleton->getRootBodyNode()->getCOM();
     Vector3d com = skeleton->getCOM();
-    done = abs(c_r.x()) > 0.1 || c_r.y() > 0.2;
+    //done = abs(c_r.x()) > 0.1 || c_r.y() > 0.2 || fallen;
+    done = fallen;
+    vector<BodyNode*> bns = skeleton->getBodyNodes();
+    //Vector3d com = skeleton->getCOM();
+    //Vector3d v_com = skeleton->getCOMLinearVelocity();
+    //Vector3d L = Vector3d::Zero(); // angular momentum wrt com
+    //for (size_t i = 2; i < bns.size(); ++i)
+    //{
+    //    Vector3d com_i = bns->getCOM();
+    //    Vector3d v_com_i = bns->getCOMLinearVelocity();
+    //    Matrix3d I = bns->getInertia();
+    //    Matrix3d R = bns->getWorldTransform().linear();
+    //    Matrix3d omega = bns->getAngularVelocity();
+    //    L += (com_i - com).cross(v_com_i - v_com) + R * I * R.transpose() * omega;
+    //}
+    Vector3d L = bns[2]->getAngularMomentum(); // angular momentum of the disc wrt (0, 0, 0)
+    double t = world->getTime();
+    if (t == t_prev)
+        t = t_prev + 1;
+    Vector3d dL = (L - L_prev) / (t - t_prev);
+    Vector3d g = world->getGravity();
+    double m = skeleton->getMass();
+    //Vector3d com = skeleton->getCOM();
+    Vector3d tau = com.cross(m * g);
+    //cout << "com: " << com.transpose() << endl;
+    //cout << "mg: " << (m * g).transpose() << endl;
     //cout << exp(-10 * abs(c_r.x())) << " " << exp(-10 * abs(com.x() - c_r.x())) << " " << exp(-action.norm()) << endl;
-    reward = exp(-10 * abs(c_r.x())) + exp(-10 * abs(com.x() - c_r.x())) + exp(-action.norm());
+    //reward = exp(-10 * abs(c_r.x())) + exp(-10 * abs(com.x() - c_r.x())) + exp(-action.norm());
     //cout << exp(-skeleton->getPositions().norm()) << endl;
     //reward = exp(-skeleton->getPositions().norm()) + exp(-action.norm());
+    //reward = exp(-(dL - tau).norm()) + exp(-action.norm());
+    //reward = 10 * exp(-1 * (dL - tau).norm());
+    reward = bns[2]->getCOM().y();
+    //cout << "dL: " << dL.z() << endl;
+    //cout << "tau: " << tau.z() << endl;
+    //cout << exp(-(dL - tau).norm()) << endl;
+    f_dL << dL.z() << " " << tau.z() << endl;
 }
+
