@@ -27,6 +27,8 @@ doubleArray * doubleArrayPtr(int num)
 
 typedef CharacterEnv* CharacterEnvPtrArray;
 
+typedef Eigen::MatrixXf Eigen__MatrixXf;
+
 
 MODULE = CharacterEnv		PACKAGE = CharacterEnv
 
@@ -140,6 +142,15 @@ CLEANUP:
     XSRETURN(size_RETVAL);
 
 
+Eigen::MatrixXf *
+CharacterEnv::get_positions()
+CODE:
+    Eigen::MatrixXf *v = new Eigen::MatrixXf(THIS->skeleton->getPositions().cast<float>());
+    RETVAL = v;
+OUTPUT:
+    RETVAL
+
+
 double
 CharacterEnv::get_reward()
 CODE:
@@ -204,6 +215,33 @@ bool
 CharacterEnv::is_playing()
 CODE:
     RETVAL = THIS->playing;
+OUTPUT:
+    RETVAL
+
+
+MODULE = CharacterEnv           PACKAGE = Eigen::MatrixXfPtr
+
+void
+Eigen::MatrixXf::DESTROY()
+
+void *
+Eigen::MatrixXf::data()
+CODE:
+    RETVAL = THIS->data();
+OUTPUT:
+    RETVAL
+
+size_t
+Eigen::MatrixXf::rows()
+CODE:
+    RETVAL = THIS->rows();
+OUTPUT:
+    RETVAL
+
+size_t
+Eigen::MatrixXf::cols()
+CODE:
+    RETVAL = THIS->cols();
 OUTPUT:
     RETVAL
     
