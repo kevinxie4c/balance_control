@@ -32,6 +32,25 @@ XSLoader::load('CharacterEnv', $VERSION);
 
 # Preloaded methods go here.
 
+package CharacterEnvPtr;
+
+use AI::MXNet qw(mx);
+use AI::MXNet::Base;
+
+sub _matrix2mxar {
+    my $m = shift;
+    my $a = shift;
+    check_call(AI::MXNetCAPI::NDArraySyncCopyFromCPU($a->handle, $m->data, $a->size));
+}
+
+sub get_positions {
+    my $self = shift;
+    my $m = $self->get_positions_matrix;
+    my $a = mx->nd->empty([$m->cols, $m->rows]);
+    _matrix2mxar($m, $a);
+    return $a;
+}
+
 1;
 __END__
 # Below is stub documentation for your module. You'd better edit it!

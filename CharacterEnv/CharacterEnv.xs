@@ -143,7 +143,7 @@ CLEANUP:
 
 
 Eigen::MatrixXf *
-CharacterEnv::get_positions()
+CharacterEnv::get_positions_matrix()
 CODE:
     Eigen::MatrixXf *v = new Eigen::MatrixXf(THIS->skeleton->getPositions().cast<float>());
     RETVAL = v;
@@ -224,10 +224,10 @@ MODULE = CharacterEnv           PACKAGE = Eigen::MatrixXfPtr
 void
 Eigen::MatrixXf::DESTROY()
 
-void *
+char *
 Eigen::MatrixXf::data()
 CODE:
-    RETVAL = THIS->data();
+    RETVAL = (char*)THIS->data();
 OUTPUT:
     RETVAL
 
