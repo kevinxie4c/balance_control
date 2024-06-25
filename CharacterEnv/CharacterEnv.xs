@@ -28,6 +28,8 @@ doubleArray * doubleArrayPtr(int num)
 
 typedef CharacterEnv* CharacterEnvPtrArray;
 
+typedef Eigen::MatrixXf Eigen__MatrixXf;
+
 
 MODULE = CharacterEnv		PACKAGE = CharacterEnv
 
@@ -125,6 +127,13 @@ CODE:
 	croak("CharacterEnv::set_positions(...) -- incorrect number of arguments");
 CLEANUP:
     free(array);
+
+
+void
+CharacterEnv::set_positions_matrix(Eigen::MatrixXf* m)
+CODE:
+    //std::cout << m->transpose() << std::endl;
+    THIS->skeleton->setPositions(m->cast<double>());
     
 
 doubleArray *
@@ -139,6 +148,15 @@ OUTPUT:
     RETVAL
 CLEANUP:
     XSRETURN(size_RETVAL);
+
+
+Eigen::MatrixXf *
+CharacterEnv::get_positions_matrix()
+CODE:
+    Eigen::MatrixXf *v = new Eigen::MatrixXf(THIS->skeleton->getPositions().cast<float>());
+    RETVAL = v;
+OUTPUT:
+    RETVAL
 
 
 double
@@ -205,6 +223,46 @@ bool
 CharacterEnv::is_playing()
 CODE:
     RETVAL = THIS->playing;
+OUTPUT:
+    RETVAL
+
+
+MODULE = CharacterEnv           PACKAGE = Eigen::MatrixXf
+
+Eigen::MatrixXf *
+Eigen::MatrixXf::new(size_t rows, size_t cols)
+CODE:
+    RETVAL = new Eigen::MatrixXf(rows, cols);
+    //std::cout << std::hex << RETVAL->data() << std::endl;
+OUTPUT:
+    RETVAL
+
+
+MODULE = CharacterEnv           PACKAGE = Eigen::MatrixXfPtr
+
+void
+Eigen::MatrixXf::DESTROY()
+
+void *
+Eigen::MatrixXf::data()
+CODE:
+    RETVAL = THIS->data();
+    //std::cout << *THIS << std::endl;
+    //std::cout << std::hex << RETVAL << std::endl;
+OUTPUT:
+    RETVAL
+
+size_t
+Eigen::MatrixXf::rows()
+CODE:
+    RETVAL = THIS->rows();
+OUTPUT:
+    RETVAL
+
+size_t
+Eigen::MatrixXf::cols()
+CODE:
+    RETVAL = THIS->cols();
 OUTPUT:
     RETVAL
     

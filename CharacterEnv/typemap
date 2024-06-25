@@ -1,18 +1,25 @@
 TYPEMAP
-CharacterEnv *          T_OBJECT
-CharacterEnvPtr         T_OBJECT
-ParallelEnv *           T_OBJECT
-OMPEnv *                T_OBJECT
+CharacterEnv *          T_PTROBJ
+CharacterEnvPtr         T_PTROBJ
+ParallelEnv *           T_PTROBJ
+OMPEnv *                T_PTROBJ
+Eigen::MatrixXf *       T_PTROBJ
 doubleArray *           T_ARRAY
 CharacterEnvPtrArray *  T_ARRAY
+void *                  T_PV_REF
 
 OUTPUT
-T_OBJECT
-    sv_setref_pv( $arg, \"$ntype\", (void*)$var );
-    
+T_PV_REF
+        SV* tmp = newSVrv($arg, NULL);
+        sv_setiv(tmp, PTR2IV($var));
+        SvPOK_on(tmp); // turn POK flag on so function in MXNetCAPI can fetch the pointer from PV(IV) slot
+
 INPUT
-T_OBJECT
-    if (sv_derived_from($arg, \"$ntype\"))
-        $var = ($type)SvIV((SV*)SvRV( $arg ));
-    else
-        croak(\"${ntype}::$func_name() -- $var is not a blessed SV reference\");
+T_PV_REF
+	if (SvROK($arg)) {
+	    $var = ($type)SvPV_nolen((SV*)SvRV($arg));
+	}
+	else
+	    Perl_croak_nocontext(\"%s: %s is not a reference\",
+			${$ALIAS?\q[GvNAME(CvGV(cv))]:\qq[\"$pname\"]},
+			\"$var\")
