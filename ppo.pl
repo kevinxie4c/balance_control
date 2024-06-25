@@ -229,10 +229,27 @@ sub mlp {
     return $net;
 }
 
+#package CustomScalarInitializer {
+#	use Mouse;
+#	extends 'AI::MXNet::Initializer';
+##
+#	has 'value' => (
+#    		is 	     => 'ro',
+#    		isa      => 'Num',
+#    		required => 1,
+#	);
+#
+#	sub initialize {
+#    		my ($self, $desc, $arr) = @_;
+#    		$arr->fill($self->value);
+#	}
+#}
+
 package ActorModel {
     use Math::Trig;
     use AI::MXNet::Gluon::Mouse;
     use AI::MXNet::Function::Parameters; # must include this for function parameters
+    use AI::MXNet::Constant;
     extends 'AI::MXNet::Gluon::Block';
 
     sub BUILD {
@@ -241,35 +258,103 @@ package ActorModel {
         my $sizes = $attrs->{sizes};
         my $activation = $attrs->{activation};
         unless (defined($sizes) && defined($activation)) {
-            die "usage: ActorModel->new(sizes => [size_1, size_2, ...], activation => activation_type)";
-        }
+                die "usage: ActorModel->new(sizes => [size_1, size_2, ...], activation => activation_type)";
+            }
         $activation = 'tanh' unless defined $activation;
         $self->name_scope(sub {
-                my $net = nn->Sequential;
-                my $prev_size = $state_size;
-                $net->name_scope(sub {
-                        for my $size (@$sizes) {
-                            $net->add(nn->Dense($size, in_units => $prev_size, activation => $activation));
-                            $prev_size = $size;
-                        }
-                    });
-                $self->dense_base($net);
-                #$self->dense_mu(nn->Dense($action_size, in_units => $prev_size, activation => 'tanh'));
-                $self->dense_mu(nn->Dense($action_size, in_units => $prev_size));
-                #$self->dense_sigma(nn->Dense($action_size, in_units => $prev_size, activation => 'softrelu'));
-                $self->params->get('logstd', shape => $action_size);
-                $self->logstd($self->params->get('logstd')); # work for perl version of mxnet
-                #$self->logstd(mx->gluon->Parameter('logstd', shape => $action_size)); # only work for python version of mxnet
-            });
+            my $net = nn->Sequential;
+            my $prev_size = $state_size;
+            $net->name_scope(sub {
+                for my $size (@$sizes) {
+                    $net->add(nn->Dense($size, in_units => $prev_size, activation => $activation));
+                    $prev_size = $size;
+                    }
+                });
+            $self->dense_base($net);
+            #$self->dense_mu(nn->Dense($action_size, in_units => $prev_size, activation => 'tanh'));
+            $self->dense_mu(nn->Dense($action_size, in_units => $prev_size));
+            #$self->dense_sigma(nn->Dense($action_size, in_units => $prev_size, activation => 'softrelu'));
+
+            $self->collect_params->initialize(ctx=>$current_ctx);
+
+            $self->params->get('logstd', shape => $action_size);
+            $self->logstd($self->params->get('logstd')); # work for perl version of mxnet
+            #$self->logstd(mx->gluon->Parameter('logstd', shape => $action_size)); # only work for python version of mxnet
+    
+
+    	    #Properly initialize Lipschitz constants
+            my $layer_num = 0;
+            for my $size (@$sizes) {
+                my $layer = $self->dense_base->[$layer_num];
+                my $weight = $layer->weight->data($current_ctx);
+                my $lip_name = "c$layer_num";
+                my $initial_lip = abs($weight->aspdl)->sumover->max->sclr;
+                print "bound being initialized to $initial_lip\n";
+                my $lip_initializer = AI::MXNet::Constant->new(value => $initial_lip);
+                $self->params->get($lip_name, shape => [1], init => $lip_initializer);
+                $self->$lip_name($self->params->get($lip_name));
+                $layer_num++;
+            }
+            
+            my $weight_mu = $self->dense_mu->weight->data($current_ctx);
+            my $initial_lip_mu = abs($weight_mu->aspdl)->sumover->max->sclr;
+            my $lip_initializer_mu = AI::MXNet::Constant->new(value => $initial_lip_mu);
+            $self->params->get('c_mu', shape => [1]); 
+            #init => $lip_initializer_mu);
+            $self->c_mu($self->params->get('c_mu'));
+
+            $self->collect_params->initialize(ctx=>$current_ctx);
+        });
+    }
+
+    # Method to save parameters to file
+    sub save_parameters_to_file {
+        my ($self, $filename) = @_;
+        $self->save_parameters($filename);
     }
 
     method forward($x) {
-        my $y = $self->dense_base->($x);
+	#my $y = $self->dense_base->($x);
         #my ($mu, $sigma) = ($self->dense_mu->($y), $self->dense_sigma->($y));
-        my $mu = $self->dense_mu->($y);
+	#my $mu = $self->dense_mu->($y);
         #my $sigma = mx->nd->ones($mu->shape) * $g_sigma;
+	#my $sigma = exp(mx->nd->ones($mu->shape) * $self->logstd->data);
+        my $l1 = $self->dense_base->[0];
+        my $l2 = $self->dense_base->[1];
+        
+        my $w1 = $l1->weight->data;
+        my $w2 = $l2->weight->data;
+
+        my $c1 = $self->c0->data;
+        my $c2 = $self->c0->data;
+
+        my $w1_norm = $self->normalization($w1, $self->softplus($c1));
+        my $w2_norm = $self->normalization($w2, $self->softplus($c2));
+
+        my $b1 = $l1->bias->data;
+        my $b2 = $l2->bias->data;
+
+        my $act1 = $l1->act;
+        my $act2 = $l2->act;
+
+        my $o1 = $act1->(mx->nd->dot($w1_norm, $x->T())->reshape([64])+$b1)->reshape([1,64]);
+        my $o2 = $act2->(mx->nd->dot($w2_norm, $o1->T())->reshape([64])+$b2)->reshape([1,64]);
+
+        my $mu = $self->dense_mu->($o2);
         my $sigma = exp(mx->nd->ones($mu->shape) * $self->logstd->data);
         return ($mu, $sigma);
+    }
+
+    method softplus($ci) {
+        my $exp_ci = nd->exp($ci);
+        return nd->log(1 + $exp_ci);
+    }
+
+    method normalization($Wi, $softplus_ci) {
+        my $absrowsum = nd->sum(nd->abs($Wi), axis=>1);
+        my $scale = nd->minimum(1.0, $softplus_ci / $absrowsum);
+        my $scaled_Wi = $Wi * $scale->expand_dims(1);
+        return $scaled_Wi;
     }
 
     method choose_action($x) {
