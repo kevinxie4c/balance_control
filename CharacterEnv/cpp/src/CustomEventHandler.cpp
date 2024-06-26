@@ -23,6 +23,10 @@ bool CustomEventHandler::handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActi
             else
                 env->viewer->record("img");
         }
+        else if (ea.getKey() ==osgGA::GUIEventAdapter::KEY_S && !env->playing)
+        {
+            env->reqStep = true;
+        }
     }
     return false;
 }

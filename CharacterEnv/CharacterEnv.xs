@@ -226,6 +226,15 @@ OUTPUT:
     RETVAL
 
 
+bool
+CharacterEnv::req_step()
+CODE:
+    RETVAL = THIS->reqStep;
+    THIS->reqStep = false;
+OUTPUT:
+    RETVAL
+
+
 MODULE = CharacterEnv           PACKAGE = Eigen::MatrixXf
 
 Eigen::MatrixXf *
