@@ -38,6 +38,7 @@ class CharacterEnv
         bool enableRSI = false;
         osg::Vec3 eye, center, up;
         bool playing = false;
+        bool reqStep = false;
 
         Eigen::MatrixXd policyJacobian;
         Eigen::VectorXd normalizerMean, normalizerStd;

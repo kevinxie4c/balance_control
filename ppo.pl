@@ -477,7 +477,7 @@ if ($play_policy) {
     $env->reset;
     #$env->set_positions(mx->nd->array([0.5, 0]));
     until ($env->viewer_done) {
-        if ($env->is_playing) {
+        if ($env->is_playing || $env->req_step) {
             #print($env->get_positions->aspdl, "\n");
             #print(join(' ', $env->get_positions_list), "\n");
             my $observation = mx->nd->array([[$env->get_state_list]]);
