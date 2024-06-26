@@ -368,7 +368,7 @@ if (defined($load_model)) {
     $actor_net->load_parameters("$load_model/actor.par");
     print "load critic from $load_model/critic.par\n";
     $critic_net->load_parameters("$load_model/critic.par");
-    if (!$reinit_logstd) {
+    if ($reinit_logstd) {
         $actor_net->logstd->initialize(init => mx->init->Zero, force_reinit => 1);
     }
 } else {
