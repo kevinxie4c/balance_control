@@ -368,7 +368,7 @@ if (defined($load_model)) {
     $actor_net->load_parameters("$load_model/actor.par");
     print "load critic from $load_model/critic.par\n";
     $critic_net->load_parameters("$load_model/critic.par");
-    if (!$reinit_logstd) {
+    if ($reinit_logstd) {
         $actor_net->logstd->initialize(init => mx->init->Zero, force_reinit => 1);
     }
 } else {
@@ -475,8 +475,11 @@ if ($play_policy) {
     my $acc_gamma = 1;
     my $test_return = 0;
     $env->reset;
+    #$env->set_positions(mx->nd->array([0.5, 0]));
     until ($env->viewer_done) {
         if ($env->is_playing) {
+            #print($env->get_positions->aspdl, "\n");
+            #print(join(' ', $env->get_positions_list), "\n");
             my $observation = mx->nd->array([[$env->get_state_list]]);
             $observation = $state_normalizer->normalize($observation, 0);
             print $fout join(' ', $env->get_positions_list), "\n";
