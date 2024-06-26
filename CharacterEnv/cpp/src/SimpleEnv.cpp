@@ -26,8 +26,8 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
     world->setTimeStep(1.0 / forceRate);
     //world->getConstraintSolver()->setCollisionDetector(dart::collision::DARTCollisionDetector::create());
     //world->getConstraintSolver()->setCollisionDetector(dart::collision::FCLCollisionDetector::create());
-    //world->getConstraintSolver()->setCollisionDetector(dart::collision::BulletCollisionDetector::create());
-    world->getConstraintSolver()->setCollisionDetector(dart::collision::OdeCollisionDetector::create());
+    world->getConstraintSolver()->setCollisionDetector(dart::collision::BulletCollisionDetector::create());
+    //world->getConstraintSolver()->setCollisionDetector(dart::collision::OdeCollisionDetector::create());
     //((dart::constraint::BoxedLcpConstraintSolver*)world->getConstraintSolver())->setBoxedLcpSolver(std::unique_ptr<dart::constraint::BoxedLcpSolver>(new dart::constraint::DantzigBoxedLcpSolver()));
     ((dart::constraint::BoxedLcpConstraintSolver*)world->getConstraintSolver())->setBoxedLcpSolver(std::unique_ptr<dart::constraint::BoxedLcpSolver>(new dart::constraint::PgsBoxedLcpSolver()));
 
@@ -51,8 +51,12 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
     world->addSkeleton(floor);
 
     scales = readVectorXdFrom(json["scales"]);
-    state = VectorXd(skeleton->getNumDofs() * 2);
+    //state = VectorXd(skeleton->getNumDofs() * 2);
+    state = VectorXd(skeleton->getNumDofs() * 2 + 3);
     action = VectorXd(skeleton->getNumDofs());
+    policyJacobian = MatrixXd(action.size(), state.size());
+    normalizerMean = VectorXd(state.size());
+    normalizerStd = VectorXd(state.size());
 
     skeleton->setPositionLowerLimits(readVectorXdFrom(json["lower_limits"]));
     skeleton->setPositionUpperLimits(readVectorXdFrom(json["upper_limits"]));
@@ -67,7 +71,14 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
         joint->setLimitEnforcement(true);
     }
 
+    f_forces.open("forces.txt");
+
     reset();
+}
+
+SimpleEnv::~SimpleEnv()
+{
+    f_forces.close();
 }
 
 void SimpleEnv::reset()
@@ -85,11 +96,23 @@ void SimpleEnv::step()
     prev_com = skeleton->getRootBodyNode()->getCOM();
     VectorXd force = action.array() * scales.array();
     force.head(3).setZero();
+    VectorXd dq = skeleton->getVelocities();
+    VectorXd ddq = skeleton->getAccelerations();
+    VectorXd ds(state.size());
+    ds << dq, ddq, 0, 0, 0;
+    ds = (ds.array() / (normalizerStd.array() + 1e-8)).matrix();
+    VectorXd df = ((policyJacobian * ds).array() * scales.array()).matrix();
+    df.head(3).setZero();
+    //df.setZero();
+    double dt = 1.0 / forceRate;
     //force.setZero();
     //cout << force.transpose() << endl;
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
-        skeleton->setForces(force);
+        VectorXd f = force + df * dt * i;
+        f_forces << f.transpose() << endl;
+        //skeleton->setForces(force);
+        skeleton->setForces(f);
         world->step();
     }
     updateState();
@@ -98,9 +121,16 @@ void SimpleEnv::step()
 
 void SimpleEnv::updateState()
 {
-    state << skeleton->getPositions(), skeleton->getVelocities();
+    vector<BodyNode*> bns = skeleton->getBodyNodes();
+    BodyNode *lFoot = bns[3], *rFoot = bns[6], *spNode;
+    if (lFoot->getCOM().y() < rFoot->getCOM().y())
+        spNode = lFoot;
+    else
+        spNode = rFoot;
+    Vector3d r_IP = skeleton->getCOM() - spNode->getCOM();
+    state << skeleton->getPositions(), skeleton->getVelocities(), r_IP;
     Eigen::Vector3d curr_com = skeleton->getRootBodyNode()->getCOM();
     done = curr_com.y() < 0.50 || curr_com.y() > 1.70;
-    reward = 5 * (curr_com.x() - prev_com.x()) + exp(-action.norm()) + (done ? 0 : 1);
+    reward = 100 * (curr_com.x() - prev_com.x()) + 0.1 * exp(-action.norm());
     //cout << curr_com.transpose() << endl;
 }
