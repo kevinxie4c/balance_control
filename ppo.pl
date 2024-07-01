@@ -329,15 +329,16 @@ package ActorModel {
         my $w_mu = $mu->weight->data;
 
         my $c1 = $self->c0->data;
-        my $c2 = $self->c0->data;
+        my $c2 = $self->c1->data;
         my $c_mu = $self->c_mu->data;
 
-        # my $w1_norm = $self->normalization($w1, $self->softplus($c1));
-        # my $w2_norm = $self->normalization($w2, $self->softplus($c2));
-        # my $mu_norm = $self->normalization($w_mu, $self->softplus($c_mu));
-        my $w1_norm = $w1;
-        my $w2_norm = $w2;
-        my $mu_norm = $w_mu;
+        # my $c1 = mx->nd->full($self->c0->data->shape, 1e10);
+        # my $c2 = mx->nd->full($self->c1->data->shape, 1e10);
+        # my $c_mu = mx->nd->full($self->c_mu->data->shape, 1e10);
+
+        my $w1_norm = $self->normalization($w1, $self->softplus($c1));
+        my $w2_norm = $self->normalization($w2, $self->softplus($c2));
+        my $mu_norm = $self->normalization($w_mu, $self->softplus($c_mu));
 
         my $b1 = $l1->bias->data;
         my $b2 = $l2->bias->data;
@@ -349,7 +350,7 @@ package ActorModel {
         my $o1 = $act1->(mx->nd->dot($w1_norm, $x->T())->reshape([64])+$b1)->reshape([1,64]);
         my $o2 = $act2->(mx->nd->dot($w2_norm, $o1->T())->reshape([64])+$b2)->reshape([1,64]);
         #my $o_mu = (mx->nd->dot($mu_norm, $o2->T())->reshape([2])+$b_mu)->reshape([1,2]);
-        my $o_mu = $mu -> ($o2);
+        my $o_mu = $mu->($o2);
         my $sigma = exp(mx->nd->ones($o_mu->shape) * $self->logstd->data);
         return ($o_mu, $sigma);
     }
@@ -364,7 +365,6 @@ package ActorModel {
         my $div_result = $softplus_ci / $absrowsum;
         my $ones = mx->nd->ones_like($div_result);
         my $scale = mx->nd->broadcast_minimum($ones, $div_result);
-            #mx->nd->ones_like($div_result), $div_result);
         my $scaled_Wi = $Wi * $scale->expand_dims(1);
         return $scaled_Wi;
     }
@@ -462,11 +462,11 @@ my $critic_net = mlp([64, 64, 1], 'relu');
 if (defined($load_model)) {
     die "Canno find the model files!" unless -d $load_model and -f "$load_model/actor.par" and -f "$load_model/critic.par";
     print "load actor from $load_model/actor.par\n";
-    $actor_net->load_parameters("$load_model/actor.par");
+    $actor_net->load_parameters("$load_model/actor.par", allow_missing=>1);
     #, allow_missing => 1);
     print "load critic from $load_model/critic.par\n";
-    $critic_net->load_parameters("$load_model/critic.par");
-    if ($reinit_logstd) {
+    $critic_net->load_parameters("$load_model/critic.par", allow_missing=>1);
+    if (!$reinit_logstd) {
         $actor_net->logstd->initialize(init => mx->init->Zero, force_reinit => 1);
     }
 } else {
