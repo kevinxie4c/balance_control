@@ -284,7 +284,6 @@ package ActorModel {
             $self->logstd($self->params->get('logstd')); # work for perl version of mxnet
             #$self->logstd(mx->gluon->Parameter('logstd', shape => $action_size)); # only work for python version of mxnet
     
-
     	    #Properly initialize Lipschitz constants
             my $layer_num = 0;
             for my $size (@$sizes) {
@@ -302,8 +301,7 @@ package ActorModel {
             my $weight_mu = $self->dense_mu->weight->data($current_ctx);
             my $initial_lip_mu = abs($weight_mu->aspdl)->sumover->max->sclr;
             my $lip_initializer_mu = AI::MXNet::Constant->new(value => $initial_lip_mu);
-            $self->params->get('c_mu', shape => [1]); 
-            #init => $lip_initializer_mu);
+            $self->params->get('c_mu', shape => [1], init => $lip_initializer_mu);
             $self->c_mu($self->params->get('c_mu'));
 
             $self->collect_params->initialize(ctx=>$current_ctx, force_reinit=>1);
@@ -488,11 +486,11 @@ if (defined($load_model)) {
         $actor_net->logstd->initialize(init => mx->init->Zero, force_reinit => 1);
     }
 } else {
-    $actor_net->dense_base->initialize(mx->init->Xavier());
-    $actor_net->dense_mu->initialize(mx->init->Normal(0.01));
+    $actor_net->dense_base->initialize(mx->init->Xavier(), force_reinit => 1);
+    $actor_net->dense_mu->initialize(mx->init->Normal(0.01), force_reinit => 1);
     #$actor_net->dense_sigma->initialize(mx->init->Zero);
-    $actor_net->logstd->initialize(init => mx->init->Zero);
-    $critic_net->initialize(mx->init->Xavier());
+    $actor_net->logstd->initialize(init => mx->init->Zero, force_reinit => 1);
+    $critic_net->initialize(mx->init->Xavier(), force_reinit => 1);
 }
 
 my $state_normalizer = Normalizer->new([1, $state_size]);
