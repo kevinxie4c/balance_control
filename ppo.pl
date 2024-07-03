@@ -29,6 +29,7 @@ my $mini_batch_size = 256;
 my $a_scale = 1;
 my $config_file = undef;
 my $print_help = 0;
+my $alpha = 1e-6;
 
 GetOptions(
     'G|gpu:i'              => \$use_gpu,
@@ -46,6 +47,7 @@ GetOptions(
     'K|steps_per_itr=i'    => \$steps_per_itr,
     'a|a_scale=f'          => \$a_scale,
     'h|help'               => \$print_help,
+    'al|alpha=f'           => \$alpha,
 );
 
 if (@ARGV != 1 || $print_help) {
@@ -62,6 +64,7 @@ options:
     -N --num_itrs=INT
     -K --steps_per_itr=INT
     -a --a_scale=FLOAT
+    -al --alpha=FLOAT
     -h --help
 HELP_MSG
 }
@@ -355,6 +358,21 @@ package ActorModel {
         return ($o_mu, $sigma);
     }
 
+    method compute_network_lipschitz_bound() {
+        my $layer_num = 0;
+        my $lip_bound = 1;
+        for my $layer ($self->dense_base->_children->values) {
+            my $weight = $layer->weight->data;
+            my $lip_name = "c$layer_num";
+            my $soft_c = $self->softplus($self->$lip_name->data);
+            $lip_bound *= $soft_c->aspdl->at(0);
+            $layer_num++;
+        }
+        my $soft_c_mu = $self->softplus($self->c_mu->data);
+        $lip_bound *= $soft_c_mu->aspdl->at(0);
+        return $lip_bound;
+    }
+    
     method softplus($ci) {
         my $exp_ci = mx->nd->exp($ci);
         return mx->nd->log(1 + $exp_ci);
@@ -500,7 +518,7 @@ sub train_policy {
                 (1 + $clip_ratio) * $advantage_buffer,
                 (1 - $clip_ratio) * $advantage_buffer,
             );
-            $policy_loss = -mx->nd->mean(mx->nd->broadcast_minimum($ratio * $advantage_buffer, $min_advantage));
+            $policy_loss = -mx->nd->mean(mx->nd->broadcast_minimum($ratio * $advantage_buffer, $min_advantage)) + $alpha * $actor_net->compute_network_lipschitz_bound();
         });
     $policy_loss->backward;
     #print($policy_loss->aspdl);
