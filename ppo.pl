@@ -870,7 +870,12 @@ POLICY_LOOP:
         $observation = $state_normalizer->normalize($observation, 0);
     }
 
-    print "Itr: $itr. Sigma: $g_sigma. Mean Return: ", $sum_return / $num_episodes, ". Mean Length: ", $sum_length / $num_episodes, ". Test Return: $test_return. Test Length: $test_length. Policy Loss: ", $policy_loss->aspdl->sclr, ". Value Loss: ", $value_loss->aspdl->sclr, ". Decay_frac: $decay_frac. Time: $sim_time, $train_time\n";
+    print "Itr: $itr. Sigma: $g_sigma. Mean Return: ", $sum_return / $num_episodes, ". Mean Length: ", $sum_length / $num_episodes, ". Test Return: $test_return. Test Length: $test_length. 
+        Policy Loss: ", $policy_loss->aspdl->sclr, ". Value Loss: ", $value_loss->aspdl->sclr, ". Decay_frac: ", $decay_frac, 
+        ". c0 value: ",  $actor_net->c0->data->aspdl, 
+        ". c1 value: ",  $actor_net->c1->data->aspdl,
+        ". c_mu value: ",  $actor_net->c_mu->data->aspdl,
+        ". Time: $sim_time, $train_time\n";
     print $actor_net->logstd->data->aspdl, "\n";
     print $f_ret $sum_return / $num_episodes, " ", $sum_length / $num_episodes, " $test_return $test_length\n";
 
