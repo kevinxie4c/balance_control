@@ -339,7 +339,7 @@ package ActorModel {
 
         my $w1_norm = $self->normalization($w1, $self->softplus($c1));
         my $w2_norm = $self->normalization($w2, $self->softplus($c2));
-        my $mu_norm = $self->normalization($w_mu, $self->softplus($c_mu));
+        my $w_mu_norm = $self->normalization($w_mu, $self->softplus($c_mu));
 
         my $b1 = $l1->bias->data;
         my $b2 = $l2->bias->data;
@@ -348,10 +348,12 @@ package ActorModel {
         my $act1 = $l1->act;
         my $act2 = $l2->act;
 
-        my $o1 = $act1->(mx->nd->dot($w1_norm, $x->T())->reshape([64])+$b1)->reshape([1,64]);
-        my $o2 = $act2->(mx->nd->dot($w2_norm, $o1->T())->reshape([64])+$b2)->reshape([1,64]);
-        #my $o_mu = (mx->nd->dot($mu_norm, $o2->T())->reshape([2])+$b_mu)->reshape([1,2]);
-        my $o_mu = $mu->($o2);
+        my $y1 = mx->nd->broadcast_add(mx->nd->dot($w1_norm, $x->T()), $b1->reshape([64, 1]));
+        my $o1 = $act1->($y1);
+        my $y2 = mx->nd->broadcast_add(mx->nd->dot($w2_norm, $o1), $b2->reshape([64, 1]));
+        my $o2 = $act2->($y2);
+        my $o_mu = mx->nd->broadcast_add(mx->nd->dot($w_mu_norm, $o2), $b_mu->reshape([$action_size, 1]))->T();
+        #my $o_mu = $mu->($o2->T());
         my $sigma = exp(mx->nd->ones($o_mu->shape) * $self->logstd->data);
         return ($o_mu, $sigma);
     }
