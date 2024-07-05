@@ -118,7 +118,13 @@ void SimCharacter::createJoint(nlohmann::json json, dart::dynamics::BodyNodePtr 
 		auto shapeNode = bn->createShapeNodeWith<CollisionAspect, DynamicsAspect, VisualAspect>(dShape);
 		//auto shapeNode = bn->createShapeNodeWith<CollisionAspect, DynamicsAspect>(dShape);
 		shapeNode->setRelativeTransform(tf);
-		shapeNode->getVisualAspect()->setColor(Eigen::Vector3d(1.0, 1.0, 0.0));
+                if (shape.contains("color"))
+                {
+                    std::vector<double> color = shape["color"].get<std::vector<double>>();
+                    shapeNode->getVisualAspect()->setColor(Eigen::Vector3d(color[0], color[1], color[2]));
+                }
+                else 
+                    shapeNode->getVisualAspect()->setColor(Eigen::Vector3d(1.0, 1.0, 0.0));
 	    }
 	}
 
