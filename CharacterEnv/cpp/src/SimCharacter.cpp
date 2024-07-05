@@ -83,6 +83,24 @@ void SimCharacter::createJoint(nlohmann::json json, dart::dynamics::BodyNodePtr 
 	    properties.mT_ParentBodyToJoint.translation() = pos;
 	    bn = skeleton->createJointAndBodyNodePair<WeldJoint>(parent, properties, BodyNode::AspectProperties(name)).second;
         }
+        else if (type == "prismatic")
+        {
+	    PrismaticJoint::Properties properties;
+	    properties.mName = name;
+	    properties.mT_ParentBodyToJoint.translation() = pos;
+	    std::string axis = json["axis"];
+	    if (axis == "x")
+		properties.mAxis = Eigen::Vector3d::UnitX();
+	    else if (axis == "y")
+		properties.mAxis = Eigen::Vector3d::UnitY();
+	    else if (axis == "z")
+		properties.mAxis = Eigen::Vector3d::UnitZ();
+	    else
+		std::cerr << "unknown axis: " + axis << std::endl;
+	    bn = skeleton->createJointAndBodyNodePair<PrismaticJoint>(parent, properties, BodyNode::AspectProperties(name)).second;
+        }
+        else
+            std::cerr << "unknown joint type: " << type << std::endl;
 	if (json.contains("mass"))
 	    bn->setMass(json["mass"]);
 	if (json.contains("COM"))
