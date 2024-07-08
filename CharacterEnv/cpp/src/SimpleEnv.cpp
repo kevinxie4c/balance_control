@@ -54,9 +54,6 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
     //state = VectorXd(skeleton->getNumDofs() * 2);
     state = VectorXd(skeleton->getNumDofs() * 2 + 3);
     action = VectorXd(skeleton->getNumDofs());
-    policyJacobian = MatrixXd(action.size(), state.size());
-    normalizerMean = VectorXd(state.size());
-    normalizerStd = VectorXd(state.size());
 
     skeleton->setPositionLowerLimits(readVectorXdFrom(json["lower_limits"]));
     skeleton->setPositionUpperLimits(readVectorXdFrom(json["upper_limits"]));

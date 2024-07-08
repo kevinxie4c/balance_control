@@ -44,6 +44,9 @@ CharacterEnv* CharacterEnv::makeEnv(const char *cfgFilename)
         if (camera.contains("up"))
             env->up = json2Vec3(camera["up"]);
     }
+    env->policyJacobian = Eigen::MatrixXd(env->action.size(), env->state.size());
+    env->normalizerMean = Eigen::VectorXd(env->state.size());
+    env->normalizerStd = Eigen::VectorXd(env->state.size());
 
     return env;
 }
