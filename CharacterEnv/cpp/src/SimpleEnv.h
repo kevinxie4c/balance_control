@@ -21,6 +21,9 @@ class SimpleEnv: public CharacterEnv
         Eigen::VectorXd scales;
         Eigen::Vector3d prev_com;
 
+        std::vector<Eigen::VectorXd> refMotion;
+        int frameRate;
+
         std::ofstream f_forces;
 };
 
