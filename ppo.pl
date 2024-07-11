@@ -28,6 +28,7 @@ my $num_itrs = 5000;
 my $mini_batch_size = 256;
 my $a_scale = 1;
 my $config_file = undef;
+my $enable_clipping = 0;
 my $print_help = 0;
 
 GetOptions(
@@ -489,7 +490,9 @@ if ($play_policy) {
             set_policy_jacobian($env, $observation);
             my ($mu, $sigma) = $actor_net->($observation);
             my $action = $mu;
-            $action = $action->clip(-1, 1);
+            if ($enable_clipping) {
+                $action = $action->clip(-1, 1);
+            }
             print $f_action join(' ', $action->aspdl->list), "\n";
             #print "action: ", $action->aspdl, "\n";
             #$a_scale = 0;
@@ -532,7 +535,9 @@ for my $itr (1 .. $num_itrs) {
     #    #print $f_action join(' ', $action->aspdl->list), "\n";	# debug
     #    #print $f_pos join(' ', $env->get_state_list), "\n";	# debug
     #    #render;    # debug
-    #    $action = $action->clip(-1, 1);
+    #    if ($enable_clipping) {
+    #       $action = $action->clip(-1, 1);
+    #    }
     #    $env->set_action_list(($action * $a_scale)->aspdl->list);
     #    $env->step;
     #    my $reward = $env->get_reward;
@@ -617,7 +622,8 @@ for my $itr (1 .. $num_itrs) {
         }
         $logprobability_t[$id] = $actor_net->log_prob($action[$id], $mu, $sigma)->aspdl->at(0, 0);
         #$action[$id] = $action[$id]->clip(-1, 1);
-        $env->set_action_list(($action[$id]->clip(-1, 1) * $a_scale)->aspdl->list);
+        my $action_c = $enable_clipping ? $action[$id]->clip(-1, 1) : $action[$id];
+        $env->set_action_list(($action_c * $a_scale)->aspdl->list);
         $env->set_normalizer_mean($state_normalizer->{ms}{mean}->aspdl->list);
         $env->set_normalizer_std($state_normalizer->{ms}{std}->aspdl->list);
         set_policy_jacobian($env, $observation[$id]);
@@ -740,7 +746,9 @@ POLICY_LOOP:
     until ($env->get_done || $test_length >= $steps_per_itr) {
         my ($mu, $sigma) = $actor_net->($observation);
         my $action = $mu;   # deterministic
-        $action = $action->clip(-1, 1);
+        if ($enable_clipping) {
+            $action = $action->clip(-1, 1);
+        }
         $env->set_action_list(($action * $a_scale)->aspdl->list);
         $env->set_normalizer_mean($state_normalizer->{ms}{mean}->aspdl->list);
         $env->set_normalizer_std($state_normalizer->{ms}{std}->aspdl->list);
