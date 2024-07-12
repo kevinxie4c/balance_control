@@ -9,6 +9,7 @@ use List::Util qw(shuffle);
 use Data::Dumper;
 use strict;
 use warnings;
+use JSON qw(decode_json); 
 
 my $use_gpu = undef;
 my $load_model = undef;
@@ -559,6 +560,47 @@ sub set_policy_jacobian {
     }
 }
 
+sub compute_effective_stiffness {
+    my ($env, $observation, $action_scaling) = @_;
+    $observation->attach_grad;
+    my $action;
+    my $jacobian = mx->nd->zeros([$action_size, $state_size]);
+    for my $idx (0 .. $action_size - 1) {
+        my $mask = mx->nd->zeros([$action_size]);
+        autograd->record(sub {
+                my ($mu, $sigma) = $actor_net->($observation);
+                #$action = $mu;   # deterministic
+                $mask->slice($idx) .= 1;
+                $action = mx->nd->dot($mu, $mask);
+            });
+        $action->backward;
+        #print("grad: ", $observation->grad->aspdl);
+        #$env->set_policy_jacobian_row($idx, $observation->grad->aspdl->list);
+        $jacobian->slice([$idx,]) .= $observation->grad;
+    }
+    my $normalized_state_grad = compute_state_grad($env, $observation);
+    my $state_scaling = 1/($state_normalizer->{ms}{std} + 1e-8);
+    my $state_grad = $normalized_state_grad * $state_scaling->[0];
+    my $stiffness =mx->nd->dot($jacobian, $state_grad);
+    my $effective_stiffness = $action_scaling * $stiffness;
+    return $effective_stiffness->aspdl->at(1);
+}
+
+sub get_action_scales {
+    my $config_file_contents = read_file($config_file);
+    my $config = decode_json("$config_file_contents");
+    my $scales_file = $config->{scales};
+    my $scales = mx->nd->array([split(' ', read_file($scales_file))]);
+    return $scales;
+}
+sub compute_state_grad {
+    my ($env, $observation) = @_;
+    my $q = $env->get_positions;
+    my $q1 = $q->aspdl->at(1);
+    #my $state_grad = mx->nd->zeros($observation->shape);
+    my $state_grad = mx->nd->array([0, -sin($q1), cos($q1), 0, 0]);
+    return $state_grad;
+}
 
 #my $buffer = Buffer->new($state_size, $action_size, $steps_per_itr);
 my @buffers;
@@ -588,10 +630,13 @@ if ($play_policy) {
     open my $fout, '>', "$outdir/positions.txt";
     open my $f_action, '>', "$outdir/actions.txt";
     open my $f_reward, '>', "$outdir/rewards.txt";
+    open my $f_stiffness, '>', "$outdir/stiffness.txt";
     my $acc_gamma = 1;
     my $test_return = 0;
     $env->reset;
     #$env->set_positions(mx->nd->array([0.5, 0]));
+    my $action_scaling = get_action_scales();
+    my $start_time = time;
     until ($env->viewer_done) {
         if ($env->is_playing || $env->req_step) {
             #print($env->get_positions->aspdl, "\n");
@@ -603,6 +648,10 @@ if ($play_policy) {
             $env->set_normalizer_mean($state_normalizer->{ms}{mean}->aspdl->list);
             $env->set_normalizer_std($state_normalizer->{ms}{std}->aspdl->list);
             set_policy_jacobian($env, $observation);
+            my $stiffness = compute_effective_stiffness($env, $observation, $action_scaling);
+            my $current_time = time;
+            my $elapsed_time = $current_time - $start_time;
+            print $f_stiffness "$elapsed_time $stiffness\n";
             my ($mu, $sigma) = $actor_net->($observation);
             my $action = $mu;
             $action = $action->clip(-1, 1);
