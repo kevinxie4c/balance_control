@@ -8,6 +8,7 @@
 #include "MimicEnv.h"
 #include "SimpleEnv.h"
 #include "MomentumCtrlEnv.h"
+#include "CartpoleEnv.h"
 #include "CustomEventHandler.h"
 
 using namespace std;
@@ -28,8 +29,10 @@ CharacterEnv* CharacterEnv::makeEnv(const char *cfgFilename)
         env = new SimpleEnv(cfgFilename);
     else if (json["env"] == "momentum-ctrl")
         env = new MomentumCtrlEnv(cfgFilename);
+    else if (json["env"] == "cartpole")
+        env = new CartpoleEnv(cfgFilename);
     else
-        throw runtime_error(string("unknow env: ") + json["env"].get<string>());
+        throw runtime_error(string("unknown env: ") + json["env"].get<string>());
 
     env->eye = osg::Vec3(0, 1, 5);
     env->center = osg::Vec3(0, 1, 0);
