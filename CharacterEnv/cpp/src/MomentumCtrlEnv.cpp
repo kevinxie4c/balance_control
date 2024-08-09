@@ -24,7 +24,9 @@ MomentumCtrlEnv::MomentumCtrlEnv(const char *cfgFilename)
     world = dart::simulation::World::create();
     //skeleton->setGravity(Vector3d(0, -9.8, 0)); // Why it doesn't work?
     world->setGravity(Vector3d(0, -9.8, 0));
+    //world->setGravity(Vector3d(0, 0, 0));
     world->addSkeleton(skeleton);
+    forceRate = actionRate;
     world->setTimeStep(1.0 / forceRate);
     //world->getConstraintSolver()->setCollisionDetector(dart::collision::DARTCollisionDetector::create());
     //world->getConstraintSolver()->setCollisionDetector(dart::collision::FCLCollisionDetector::create());
@@ -66,7 +68,7 @@ MomentumCtrlEnv::MomentumCtrlEnv(const char *cfgFilename)
     //state = VectorXd(1);
     action = VectorXd(skeleton->getNumDofs());
 
-    f_dL.open("dL.txt");
+    //f_dL.open("dL.txt");
     f_forces.open("forces.txt");
 
     reset();
@@ -74,22 +76,27 @@ MomentumCtrlEnv::MomentumCtrlEnv(const char *cfgFilename)
 
 MomentumCtrlEnv::~MomentumCtrlEnv()
 {
-    f_dL.close();
+    //f_dL.close();
     f_forces.close();
 }
 
 void MomentumCtrlEnv::reset()
 {
     world->reset();
-    VectorXd rands = VectorXd::Random(skeleton->getNumDofs());
+    //VectorXd rands = VectorXd::Random(skeleton->getNumDofs());
     VectorXd zeros = VectorXd::Zero(skeleton->getNumDofs());
-    skeleton->setPositions(zeros);
+    VectorXd v(2);
+    v << 0.5, 0;
+    //zeros[0] = 0.01;
+    //skeleton->setPositions(zeros);
+    skeleton->setPositions(v);
     skeleton->setVelocities(zeros);
     updateState();
 }
 
 void MomentumCtrlEnv::step()
 {
+    /*
     VectorXd force = (action.array() * scales.array()).matrix();
     VectorXd q = skeleton->getPositions();
     VectorXd dq = skeleton->getVelocities();
@@ -105,25 +112,108 @@ void MomentumCtrlEnv::step()
     fallen = false;
     Vector3d L_prev = bns[2]->getAngularMomentum(); // angular momentum of the dist wrt (0, 0, 0)
     double t_prev = world->getTime();
+
+    MatrixXd M = skeleton->getMassMatrix();
+    VectorXd C = skeleton->getCoriolisAndGravityForces();
+    //cout << "M\n" << M << endl;
+    //cout << "C\n" << C << endl;
+    MatrixXd aS = MatrixXd::Zero(action.size(), action.size());
+    aS.diagonal() = scales;
+    MatrixXd sS = MatrixXd::Zero(state.size(), state.size());
+    sS.diagonal() = (normalizerStd.array() + 1e-8).matrix().cwiseInverse();
+    //cout << "sS\n" << sS << endl;
+    MatrixXd dsdq(5, 2);
+    dsdq << 1, 0,
+            0, -sin(q[1]),
+            0, cos(q[1]),
+            0, 0,
+            0, 0;
+    MatrixXd J = aS * policyJacobian * sS * dsdq;
+    //cout << "pJ\n" << policyJacobian << endl;
+    //cout << "J\n" << J << endl;
+    double h = 1.0 / actionRate;
+    //MatrixXd K(2, 2);
+    //MatrixXd D(2, 2);
+    //K << 500, 0,
+    //     0, 500;
+    //D << 0.0, 0.0,
+    //     0.0, 0.0;
+    //force = -K * q - D * dq;
+    //MatrixXd A = (M + h * h * K);
+    MatrixXd A = (M - h * h * J);
+    VectorXd b = M * dq + h * (force - C);
+    //cout << "A\n" << A << endl;
+    //cout << "b\n" << b << endl;
+    VectorXd dq_n = A.inverse() * b;
+    VectorXd q_n = q + h * dq_n;
+    skeleton->setPositions(q_n);
+    skeleton->setVelocities(dq_n);
+    world->setTime(world->getTime() + h);
+    fallen = bns[2]->getCOM().y() < 1.0;
+    f_forces << force.transpose() << endl;
+    */
+
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
-        double rem = fmod(world->getTime(), 10.0);
-        if (rem >= 1.0 && rem < 1.2)
-            skeleton->getBodyNode(2)->addExtForce(Vector3d(-200, 0, 0));
-        else if (rem >= 6.0 && rem < 6.2)
-            skeleton->getBodyNode(2)->addExtForce(Vector3d(200, 0, 0));
-        VectorXd f = force + df * dt * i;
-        f_forces << f.transpose() << endl;
-        skeleton->setForces(f);
+        //skeleton->setForces(-K * skeleton->getPositions() - D * skeleton->getVelocities());
+        VectorXd force = (action.array() * scales.array()).matrix();
+        skeleton->setForces(force);
         world->step();
-        dart::collision::CollisionResult result = world->getLastCollisionResult();
-        for (int j = 1; j < bns.size(); ++j)
-            if (result.inCollision(bns[j]))
-            {
-                fallen = true;
-                break;
-            }
     }
+
+    /*
+    for (size_t i = 0; i < forceRate / actionRate; ++i)
+    {
+        //double rem = fmod(world->getTime(), 10.0);
+        //if (rem >= 1.0 && rem < 1.2)
+        //    skeleton->getBodyNode(2)->addExtForce(Vector3d(-200, 0, 0));
+        //else if (rem >= 6.0 && rem < 6.2)
+        //    skeleton->getBodyNode(2)->addExtForce(Vector3d(200, 0, 0));
+        //VectorXd f = force + df * dt * i;
+        //f_forces << f.transpose() << endl;
+        //skeleton->setForces(f);
+        //world->step();
+        //dart::collision::CollisionResult result = world->getLastCollisionResult();
+        //for (int j = 1; j < bns.size(); ++j)
+        //    if (result.inCollision(bns[j]))
+        //    {
+        //        fallen = true;
+        //        break;
+        //    }
+
+        VectorXd q = skeleton->getPositions();
+        VectorXd dq = skeleton->getVelocities();
+        MatrixXd M = skeleton->getMassMatrix();
+        VectorXd C = skeleton->getCoriolisAndGravityForces();
+        //cout << "M\n" << M << endl;
+        //cout << "C\n" << C << endl;
+        MatrixXd aS = MatrixXd::Zero(action.size(), action.size());
+        aS.diagonal() = scales;
+        MatrixXd sS = MatrixXd::Zero(state.size(), state.size());
+        sS.diagonal() = (normalizerStd.array() + 1e-8).matrix().cwiseInverse();
+        MatrixXd dsdq(5, 2);
+        dsdq << 1, 0,
+                0, -sin(q[1]),
+                0, cos(q[1]),
+                0, 0,
+                0, 0;
+        MatrixXd J = aS * policyJacobian * sS * dsdq;
+        J.setZero();
+        force.setZero();
+        //cout << "J\n" << J << endl;
+        double h = 1.0 / forceRate;
+        MatrixXd A = (M - h * h * J);
+        VectorXd b = M * dq + h * (force - C);
+        //cout << "A\n" << A << endl;
+        //cout << "b\n" << b << endl;
+        VectorXd dq_n = A.inverse() * b;
+        VectorXd q_n = q + h * dq_n;
+        cout << "q_n\n" << q_n << endl;
+        cout << "dq_n\n" << dq_n << endl;
+        skeleton->setPositions(q_n);
+        skeleton->setVelocities(dq_n);
+    }
+    */
     updateState();
 }
 
@@ -154,7 +244,7 @@ void MomentumCtrlEnv::updateState()
     double t = world->getTime();
     if (t == t_prev)
         t = t_prev + 1;
-    Vector3d dL = (L - L_prev) / (t - t_prev);
+    //Vector3d dL = (L - L_prev) / (t - t_prev);
     Vector3d g = world->getGravity();
     double m = skeleton->getMass();
     //Vector3d com = skeleton->getCOM();
@@ -172,6 +262,6 @@ void MomentumCtrlEnv::updateState()
     //cout << "dL: " << dL.z() << endl;
     //cout << "tau: " << tau.z() << endl;
     //cout << exp(-(dL - tau).norm()) << endl;
-    f_dL << dL.z() << " " << tau.z() << endl;
+    //f_dL << dL.z() << " " << tau.z() << endl;
 }
 

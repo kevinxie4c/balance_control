@@ -358,6 +358,8 @@ my $lam = 0.97;
 my $target_kl = 0.01;
 my $policy_learning_rate = 1e-3;
 my $value_function_learning_rate = 1e-2;
+#my $policy_learning_rate = 1e-4;
+#my $value_function_learning_rate = 1e-3;
 my $actor_net = ActorModel->new(sizes => [64, 64],  activation => 'relu');
 #print $actor_net;
 my $critic_net = mlp([64, 64, 1], 'relu');

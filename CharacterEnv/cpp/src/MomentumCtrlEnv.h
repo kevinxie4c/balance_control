@@ -14,8 +14,8 @@ class MomentumCtrlEnv: public CharacterEnv
         void step() override;
         void updateState();
 
-        int actionRate = 30;
-        int forceRate = 300;
+        int actionRate = 15;
+        int forceRate = 15;
 
         dart::dynamics::SkeletonPtr floor;
         Eigen::VectorXd scales;
