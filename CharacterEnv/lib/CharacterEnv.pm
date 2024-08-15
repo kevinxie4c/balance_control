@@ -32,8 +32,6 @@ XSLoader::load('CharacterEnv', $VERSION);
 
 # Preloaded methods go here.
 
-package CharacterEnvPtr;
-
 use AI::MXNet qw(mx);
 use AI::MXNet::Base;
 
@@ -49,11 +47,13 @@ sub _matrix2mxar {
     check_call(AI::MXNetCAPI::NDArraySyncCopyFromCPU($a->handle, ${$m->data}, $a->size));
 }
 
+package CharacterEnvPtr;
+
 sub set_positions {
     my $self = shift;
     my $a = shift;
     my $m = Eigen::MatrixXf->new($a->shape->[0], 1);
-    _mxar2matrix($a, $m);
+    CharacterEnv::_mxar2matrix($a, $m);
     $self->set_positions_matrix($m);
 }
 
@@ -61,8 +61,34 @@ sub get_positions {
     my $self = shift;
     my $m = $self->get_positions_matrix;
     my $a = mx->nd->empty([$m->rows]);
-    _matrix2mxar($m, $a);
+    CharacterEnv::_matrix2mxar($m, $a);
     return $a;
+}
+
+package OMPEnvPtr;
+
+sub get_observations {
+    my $self = shift;
+    my $m = $self->get_observations_matrix;
+    my $a = mx->nd->empty([$m->cols, $m->rows]);
+    CharacterEnv::_matrix2mxar($m, $a);
+    return $a;
+}
+
+sub set_means {
+    my $self = shift;
+    my $a = shift;
+    my $m = Eigen::MatrixXf->new($a->shape->[1], $a->shape->[0]);
+    CharacterEnv::_mxar2matrix($a, $m);
+    $self->set_means_matrix($m);
+}
+
+sub set_stds {
+    my $self = shift;
+    my $a = shift;
+    my $m = Eigen::MatrixXf->new($a->shape->[1], $a->shape->[0]);
+    CharacterEnv::_mxar2matrix($a, $m);
+    $self->set_stds_matrix($m);
 }
 
 1;

@@ -4,6 +4,8 @@
 #include <vector>
 #include <memory>
 #include "CharacterEnv.h"
+#include "Sample.h"
+#include "StdNormalDistVec.h"
 
 class OMPEnv
 {
@@ -16,9 +18,15 @@ class OMPEnv
 	~OMPEnv();
 
         size_t num_threads;
-        std::vector<Eigen::VectorXd> positions;
-        std::vector<Eigen::VectorXd> velocities;
-        std::vector<Eigen::VectorXd> actions;
+        // Eigen: column-major; MXNet: row-major
+        Eigen::MatrixXd positions;
+        Eigen::MatrixXd velocities;
+        Eigen::MatrixXd means, stds;
+        Eigen::MatrixXd observations;
+        size_t numSample = 20, numSave = 4;
+        size_t numObs; // Why need this?
+        std::vector<std::shared_ptr<Sample>> savedSamples;
+        std::vector<StdNormalDistVec> samplers;
 };
 
 #endif

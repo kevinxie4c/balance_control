@@ -326,3 +326,45 @@ MODULE = CharacterEnv		PACKAGE = OMPEnvPtr
 
 void
 OMPEnv::DESTROY()
+
+
+CharacterEnvPtrArray *
+OMPEnv::get_env_list()
+PREINIT:
+    U32 size_RETVAL;
+CODE:
+    size_RETVAL = THIS->envs.size();
+    RETVAL = THIS->envs.data();
+OUTPUT:
+    RETVAL
+CLEANUP:
+    XSRETURN(size_RETVAL);
+
+
+void
+OMPEnv::reset()
+
+
+void
+OMPEnv::step()
+
+
+void
+OMPEnv::set_means_matrix(Eigen::MatrixXf* m)
+CODE:
+    THIS->means = m->cast<double>();
+
+
+void
+OMPEnv::set_stds_matrix(Eigen::MatrixXf* m)
+CODE:
+    THIS->stds = m->cast<double>();
+
+
+Eigen::MatrixXf *
+OMPEnv::get_observations_matrix()
+CODE:
+    Eigen::MatrixXf *m = new Eigen::MatrixXf(THIS->observations.cast<float>());
+    RETVAL = m;
+OUTPUT:
+    RETVAL
