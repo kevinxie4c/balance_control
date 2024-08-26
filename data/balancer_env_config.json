@@ -1,0 +1,14 @@
+{
+    "env": "balancer",
+    "character": "data/balancer.json",
+    "camera": {
+        "eye": [0, 0.5, 5],
+        "center": [0, 0.5, 0],
+        "up": [0, 1, 0]
+    },
+    "friction_coeff": 1.0,
+    "restitution_coeff": 0.0,
+    "scales": "data/balancer_env_scales.txt",
+    "lower_limits": "data/balancer_env_lower_limits.txt",
+    "upper_limits": "data/balancer_env_upper_limits.txt"
+}
