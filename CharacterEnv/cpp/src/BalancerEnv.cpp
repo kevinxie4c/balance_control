@@ -39,7 +39,7 @@ BalancerEnv::BalancerEnv(const char *cfgFilename)
 
     scales = readVectorXdFrom(json["scales"]);
     state = VectorXd(skeleton->getNumDofs() * 2);
-    action = VectorXd(skeleton->getNumDofs());
+    action = VectorXd(skeleton->getNumDofs() - 1); // floor is not actuated
 
     reset();
 }
@@ -102,7 +102,7 @@ void BalancerEnv::step()
     */
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
-        VectorXd force(5);
+        VectorXd force = VectorXd::Zero(5);
         force.tail(4) = (action.array() * scales.array()).matrix();
         skeleton->setForces(force);
         //floor->setForces(-500 * (floor->getPositions() - floorTheta) - 100 * floor->getVelocities());
