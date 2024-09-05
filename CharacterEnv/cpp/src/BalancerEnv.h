@@ -17,6 +17,8 @@ class BalancerEnv: public CharacterEnv
         int forceRate = 100;
 
         Eigen::VectorXd scales;
+        Eigen::VectorXd lowerLimits;
+        Eigen::VectorXd upperLimits;
 };
 
 #endif
