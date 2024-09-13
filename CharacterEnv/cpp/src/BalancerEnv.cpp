@@ -5,6 +5,8 @@
 #include "BalancerEnv.h"
 #include "IOUtil.h"
 
+#define SIM_MODE 0
+
 using namespace std;
 using namespace Eigen;
 using namespace dart::dynamics;
@@ -31,6 +33,8 @@ BalancerEnv::BalancerEnv(const char *cfgFilename)
 
     skeleton->setPositionLowerLimits(lowerLimits = readVectorXdFrom(json["lower_limits"]));
     skeleton->setPositionUpperLimits(upperLimits = readVectorXdFrom(json["upper_limits"]));
+    //skeleton->setVelocityLowerLimits(VectorXd::Ones(skeleton->getNumDofs()) * -100);
+    //skeleton->setVelocityUpperLimits(VectorXd::Ones(skeleton->getNumDofs()) * 100);
     for (Joint *joint: skeleton->getJoints())
     {
         joint->setActuatorType(Joint::FORCE);
@@ -51,16 +55,18 @@ void BalancerEnv::reset()
     VectorXd zeros = VectorXd::Zero(skeleton->getNumDofs());
     skeleton->setPositions(zeros);
     skeleton->setVelocities(zeros);
+    done = false;
     updateState();
 }
 
 void BalancerEnv::step()
 {
-    double h = 1.0 / forceRate;
     VectorXd force = VectorXd::Zero(5);
     force.tail(4) = (action.array() * scales.array()).matrix();
+    double h = 1.0 / forceRate;
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
+#if SIM_MODE == 0
         VectorXd q = skeleton->getPositions();
         VectorXd dq = skeleton->getVelocities();
         VectorXd ddq = skeleton->getAccelerations();
@@ -90,6 +96,8 @@ void BalancerEnv::step()
         //MatrixXd A = (M + h * h * K);
         MatrixXd A = (M - h * h * J);
         VectorXd b = M * dq + h * (force - C);
+        //MatrixXd A = M;
+        //VectorXd b = (M - h * h * J) * dq + h * (force - C);
         //cout << "A\n" << A << endl;
         //cout << "b\n" << b << endl;
         //VectorXd dq_n = A.inverse() * b;
@@ -100,6 +108,7 @@ void BalancerEnv::step()
         //dq_n = (q_n - q) / h;
         //skeleton->setPositions(q_n);
         skeleton->setVelocities(dq_n);
+        //cout << "dq_n: " << dq_n.transpose() << endl;
         world->getConstraintSolver()->solve();
         if (skeleton->isImpulseApplied())
         {
@@ -109,17 +118,44 @@ void BalancerEnv::step()
         skeleton->integratePositions(h);
         //cout << "v: " << skeleton->getVelocities().transpose() << endl;
         //cout << "p: " << skeleton->getPositions().transpose() << endl;
+        if (skeleton->getPositions().array().isNaN().any() || skeleton->getVelocities().array().isNaN().any())
+        {
+            done = true;
+            cout << "done" << endl;
+            skeleton->setPositions(q);
+            skeleton->setVelocities(dq);
+            break;
+        }
         world->setTime(world->getTime() + h);
-    }
-    /*
-    for (size_t i = 0; i < forceRate / actionRate; ++i)
-    {
-        VectorXd force = VectorXd::Zero(5);
-        force.tail(4) = (action.array() * scales.array()).matrix();
+#elif SIM_MODE == 1
+        VectorXd q = skeleton->getPositions();
+        VectorXd dq = skeleton->getVelocities();
+        MatrixXd aS = MatrixXd::Zero(action.size(), action.size());
+        aS.diagonal() = scales;
+        MatrixXd sS = MatrixXd::Zero(state.size(), state.size());
+        sS.diagonal() = (normalizerStd.array() + 1e-8).matrix().cwiseInverse();
+        MatrixXd dsdq = MatrixXd::Zero(10, 4);
+        for (size_t i = 0; i < 4; ++i)
+            dsdq(i, i) = 1;
+        MatrixXd J = MatrixXd::Zero(5, 5);
+        J.bottomRows(4) = aS * policyJacobian * sS * dsdq;
+        VectorXd f = force + i * h * J * dq;
+        skeleton->setForces(f);
+        //cout << "f: " << f.transpose() << endl;
+        world->step();
+        if (skeleton->getPositions().array().isNaN().any() || skeleton->getVelocities().array().isNaN().any())
+        {
+            done = true;
+            cout << "done" << endl;
+            skeleton->setPositions(q);
+            skeleton->setVelocities(dq);
+            break;
+        }
+#else
         skeleton->setForces(force);
         world->step();
+#endif
     }
-    */
     updateState();
 }
 
@@ -128,6 +164,7 @@ void BalancerEnv::updateState()
     VectorXd q = skeleton->getPositions();
     VectorXd dq = skeleton->getVelocities();
     state << q, dq;
-    done = abs(q[0]) > 0.5;
+    done = abs(q[0]) > 0.5 || done;
     reward = -action.norm() + (done ? 0 : 100);
+    //cout << done << " " << reward << endl;
 }
