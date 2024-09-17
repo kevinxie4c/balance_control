@@ -28,6 +28,7 @@ my $num_itrs = 5000;
 my $mini_batch_size = 256;
 my $a_scale = 1;
 my $config_file = undef;
+my $alpha = 1e-2;
 my $print_help = 0;
 
 GetOptions(
@@ -260,16 +261,79 @@ package ActorModel {
                 $self->params->get('logstd', shape => $action_size);
                 $self->logstd($self->params->get('logstd')); # work for perl version of mxnet
                 #$self->logstd(mx->gluon->Parameter('logstd', shape => $action_size)); # only work for python version of mxnet
+
+                # Lipschitz
+                for my $layer_num (0 .. scalar(@$sizes) - 1) {
+                    my $lip_name = "c$layer_num";
+                    $self->params->get($lip_name, shape => [1]);
+                    $self->$lip_name($self->params->get($lip_name));
+                }
+
+                $self->params->get('c_mu', shape => [1]);
+                $self->c_mu($self->params->get('c_mu'));
             });
     }
 
     method forward($x) {
-        my $y = $self->dense_base->($x);
-        #my ($mu, $sigma) = ($self->dense_mu->($y), $self->dense_sigma->($y));
-        my $mu = $self->dense_mu->($y);
-        #my $sigma = mx->nd->ones($mu->shape) * $g_sigma;
-        my $sigma = exp(mx->nd->ones($mu->shape) * $self->logstd->data);
-        return ($mu, $sigma);
+        my $l1 = $self->dense_base->[0];
+        my $l2 = $self->dense_base->[1];
+        my $mu = $self->dense_mu;
+
+        my $w1 = $l1->weight->data;
+        my $w2 = $l2->weight->data;
+        my $w_mu = $mu->weight->data;
+
+        my $c1 = $self->c0->data;
+        my $c2 = $self->c1->data;
+        my $c_mu = $self->c_mu->data;
+
+        my $w1_norm = $self->normalization($w1, $self->softplus($c1));
+        my $w2_norm = $self->normalization($w2, $self->softplus($c2));
+        my $w_mu_norm = $self->normalization($w_mu, $self->softplus($c_mu));
+
+        my $b1 = $l1->bias->data;
+        my $b2 = $l2->bias->data;
+        my $b_mu = $mu->bias->data;
+
+        my $act1 = $l1->act;
+        my $act2 = $l2->act;
+
+        my $y1 = mx->nd->broadcast_add(mx->nd->dot($w1_norm, $x->T()), $b1->reshape([64, 1]));
+        my $o1 = $act1->($y1);
+        my $y2 = mx->nd->broadcast_add(mx->nd->dot($w2_norm, $o1), $b2->reshape([64, 1]));
+        my $o2 = $act2->($y2);
+        my $o_mu = mx->nd->broadcast_add(mx->nd->dot($w_mu_norm, $o2), $b_mu->reshape([$action_size, 1]))->T();
+        my $sigma = exp(mx->nd->ones($o_mu->shape) * $self->logstd->data);
+        return ($o_mu, $sigma);
+    }
+
+    method compute_network_lipschitz_bound() {
+        my $layer_num = 0;
+        my $lip_bound = 1;
+        for my $layer ($self->dense_base->_children->values) {
+            my $weight = $layer->weight->data;
+            my $lip_name = "c$layer_num";
+            my $soft_c = $self->softplus($self->$lip_name->data);
+            $lip_bound *= $soft_c->aspdl->at(0);
+            $layer_num++;
+        }
+        my $soft_c_mu = $self->softplus($self->c_mu->data);
+        $lip_bound *= $soft_c_mu->aspdl->at(0);
+        return $lip_bound;
+    }
+    
+    method softplus($ci) {
+        my $exp_ci = mx->nd->exp($ci);
+        return mx->nd->log(1 + $exp_ci);
+    }
+
+    method normalization($Wi, $softplus_ci) {
+        my $absrowsum = mx->nd->sum(mx->nd->abs($Wi), axis=>1);
+        my $div_result = $softplus_ci / $absrowsum;
+        my $ones = mx->nd->ones_like($div_result);
+        my $scale = mx->nd->broadcast_minimum($ones, $div_result);
+        my $scaled_Wi = $Wi * $scale->expand_dims(1);
+        return $scaled_Wi;
     }
 
     method choose_action($x) {
@@ -367,7 +431,7 @@ my $critic_net = mlp([64, 64, 1], 'relu');
 if (defined($load_model)) {
     die "Canno find the model files!" unless -d $load_model and -f "$load_model/actor.par" and -f "$load_model/critic.par";
     print "load actor from $load_model/actor.par\n";
-    $actor_net->load_parameters("$load_model/actor.par");
+    $actor_net->load_parameters("$load_model/actor.par", allow_missing => 1);
     print "load critic from $load_model/critic.par\n";
     $critic_net->load_parameters("$load_model/critic.par");
     if ($reinit_logstd) {
@@ -380,6 +444,25 @@ if (defined($load_model)) {
     $actor_net->logstd->initialize(init => mx->init->Zero);
     $critic_net->initialize(mx->init->Xavier());
 }
+# init Lipschitz parameters
+unless ($play_policy) {
+    for my $layer_num(0 .. scalar(@{$actor_net->dense_base}) - 1) {
+        my $lip_name = "c$layer_num";
+        my $layer = $actor_net->dense_base->[$layer_num];
+        my $weight = $layer->weight->data($current_ctx);
+        my $initial_lip = abs($weight->aspdl)->sumover->max->sclr;
+        print "bound being initialized to $initial_lip\n";
+        my $lip_initializer = AI::MXNet::Constant->new(value => $initial_lip);
+        $actor_net->$lip_name->initialize(init => $lip_initializer);
+    }
+    my $weight_mu = $actor_net->dense_mu->weight->data($current_ctx);
+    my $initial_lip_mu = abs($weight_mu->aspdl)->sumover->max->sclr;
+    my $lip_initializer_mu = AI::MXNet::Constant->new(value => $initial_lip_mu);
+    $actor_net->c_mu->initialize(init => $lip_initializer_mu);
+}
+print("c0: ", $actor_net->c0->data->aspdl, "\n");
+print("c1: ", $actor_net->c1->data->aspdl, "\n");
+print("c_mu: ", $actor_net->c_mu->data->aspdl, "\n");
 
 my $state_normalizer = Normalizer->new([1, $state_size]);
 if (defined($load_model)) {
@@ -404,7 +487,7 @@ sub train_policy {
                 (1 + $clip_ratio) * $advantage_buffer,
                 (1 - $clip_ratio) * $advantage_buffer,
             );
-            $policy_loss = -mx->nd->mean(mx->nd->broadcast_minimum($ratio * $advantage_buffer, $min_advantage));
+            $policy_loss = -mx->nd->mean(mx->nd->broadcast_minimum($ratio * $advantage_buffer, $min_advantage)) + $alpha * $actor_net->compute_network_lipschitz_bound();
         });
     $policy_loss->backward;
     #print($policy_loss->aspdl);
@@ -491,7 +574,7 @@ if ($play_policy) {
             set_policy_jacobian($env, $observation);
             my ($mu, $sigma) = $actor_net->($observation);
             my $action = $mu;
-            #$action = $actor_net->sample($mu, $sigma);
+            $action = $actor_net->sample($mu, $sigma);
             $action = $action->clip(-1, 1);
             print $f_action join(' ', $action->aspdl->list), "\n";
             #print "action: ", $action->aspdl, "\n";
