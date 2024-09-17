@@ -35,6 +35,13 @@ BalancerEnv::BalancerEnv(const char *cfgFilename)
     skeleton->setPositionUpperLimits(upperLimits = readVectorXdFrom(json["upper_limits"]));
     //skeleton->setVelocityLowerLimits(VectorXd::Ones(skeleton->getNumDofs()) * -100);
     //skeleton->setVelocityUpperLimits(VectorXd::Ones(skeleton->getNumDofs()) * 100);
+    double cfm = dart::constraint::JointLimitConstraint::getConstraintForceMixing();
+    double erp = dart::constraint::JointLimitConstraint::getErrorReductionParameter();
+    cfm = 0.001;
+    erp = 0.02;
+    dart::constraint::JointLimitConstraint::setConstraintForceMixing(cfm);
+    cout << "CFM: " << cfm << endl;
+    cout << "ERP: " << erp << endl;
     for (Joint *joint: skeleton->getJoints())
     {
         joint->setActuatorType(Joint::FORCE);
@@ -55,8 +62,11 @@ void BalancerEnv::reset()
     VectorXd zeros = VectorXd::Zero(skeleton->getNumDofs());
     skeleton->setPositions(zeros);
     skeleton->setVelocities(zeros);
+    //skeleton->clearInternalForces();
+    //skeleton->clearExternalForces();
     done = false;
     updateState();
+    //cout << "reset" << endl;
 }
 
 void BalancerEnv::step()
@@ -79,8 +89,8 @@ void BalancerEnv::step()
         MatrixXd sS = MatrixXd::Zero(state.size(), state.size());
         sS.diagonal() = (normalizerStd.array() + 1e-8).matrix().cwiseInverse();
         //cout << "sS\n" << sS << endl;
-        MatrixXd dsdq = MatrixXd::Zero(10, 4);
-        for (size_t i = 0; i < 4; ++i)
+        MatrixXd dsdq = MatrixXd::Zero(10, 5);
+        for (size_t i = 0; i < 5; ++i)
             dsdq(i, i) = 1;
         MatrixXd J = MatrixXd::Zero(5, 5);
         J.bottomRows(4) = aS * policyJacobian * sS * dsdq;
@@ -107,6 +117,20 @@ void BalancerEnv::step()
         //q_n = q_n.cwiseMin(upperLimits);
         //dq_n = (q_n - q) / h;
         //skeleton->setPositions(q_n);
+        //if (dq_n.norm() == 0)
+        //{
+        //    cout << "policyJacobian:\n" << policyJacobian << endl;
+        //    cout << "aS:\n" << aS << endl;
+        //    cout << "sS:\n" << sS << endl;
+        //    cout << "A:\n" << A << endl;
+        //    cout << "M:\n" << M << endl;
+        //    cout << "J:\n" << J << endl;
+        //    cout << "b:\n" << b << endl;
+        //    cout << "dq:\n" << endl;
+        //    cout << "force:\n" << force << endl;
+        //    cout << "C:\n" << C << endl;
+        //    exit(0);
+        //}
         skeleton->setVelocities(dq_n);
         //cout << "dq_n: " << dq_n.transpose() << endl;
         world->getConstraintSolver()->solve();
