@@ -38,8 +38,9 @@ BalancerEnv::BalancerEnv(const char *cfgFilename)
     double cfm = dart::constraint::JointLimitConstraint::getConstraintForceMixing();
     double erp = dart::constraint::JointLimitConstraint::getErrorReductionParameter();
     cfm = 0.001;
-    erp = 0.02;
+    erp = 0.1;
     dart::constraint::JointLimitConstraint::setConstraintForceMixing(cfm);
+    dart::constraint::JointLimitConstraint::setErrorReductionParameter(erp);
     cout << "CFM: " << cfm << endl;
     cout << "ERP: " << erp << endl;
     for (Joint *joint: skeleton->getJoints())

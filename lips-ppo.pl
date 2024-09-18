@@ -28,7 +28,7 @@ my $num_itrs = 5000;
 my $mini_batch_size = 256;
 my $a_scale = 1;
 my $config_file = undef;
-my $alpha = 1e-2;
+my $alpha = 1e-3;
 my $print_help = 0;
 
 GetOptions(
