@@ -86,10 +86,10 @@ void QuadEnv::reset()
     VectorXd zeros = VectorXd::Zero(skeleton->getNumDofs());
     VectorXd initPos(skeleton->getNumDofs());
     initPos << 0, 0, 0, 0, -0.02, 0,
-            -0.5, 1.0,
-            -0.5, 1.0,
-            -0.5, 1.0,
-            -0.5, 1.0;
+            0, -0.5, 1.0,
+            0, -0.5, 1.0,
+            0, -0.5, 1.0,
+            0, -0.5, 1.0;
     //skeleton->setPositions(zeros);
     skeleton->setPositions(initPos);
     skeleton->setVelocities(zeros);
