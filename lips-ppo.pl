@@ -574,7 +574,7 @@ if ($play_policy) {
             set_policy_jacobian($env, $observation);
             my ($mu, $sigma) = $actor_net->($observation);
             my $action = $mu;
-            $action = $actor_net->sample($mu, $sigma);
+            #$action = $actor_net->sample($mu, $sigma);
             $action = $action->clip(-1, 1);
             print $f_action join(' ', $action->aspdl->list), "\n";
             #print "action: ", $action->aspdl, "\n";
