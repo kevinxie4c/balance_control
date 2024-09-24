@@ -77,6 +77,9 @@ QuadEnv::QuadEnv(const char *cfgFilename)
         joint->setLimitEnforcement(true);
     }
 
+    skeleton->setSelfCollisionCheck(true);
+    skeleton->setAdjacentBodyCheck(false);
+
     reset();
 }
 
@@ -124,7 +127,7 @@ void QuadEnv::updateState()
 {
     state << skeleton->getPositions(), skeleton->getVelocities();
     Eigen::Vector3d curr_com = skeleton->getRootBodyNode()->getCOM();
-    done = curr_com.y() < 0.20 || curr_com.y() > 1.00 || fallen;
-    reward = 5 * (curr_com.x() - prev_com.x()) + exp(-action.norm()) + (done ? 0 : 1);
+    done = curr_com.y() < 0.20 || curr_com.y() > 1.20 || fallen;
+    reward = 1 * ((curr_com.x() - prev_com.x()) * actionRate - 0.5) + exp(-action.norm()) + (done ? 0 : 1);
     //cout << curr_com.transpose() << endl;
 }
