@@ -10,6 +10,7 @@
 #include "MomentumCtrlEnv.h"
 #include "CartpoleEnv.h"
 #include "BalancerEnv.h"
+#include "QuadEnv.h"
 #include "CustomEventHandler.h"
 
 using namespace std;
@@ -34,6 +35,8 @@ CharacterEnv* CharacterEnv::makeEnv(const char *cfgFilename)
         env = new CartpoleEnv(cfgFilename);
     else if (json["env"] == "balancer")
         env = new BalancerEnv(cfgFilename);
+    else if (json["env"] == "quad")
+        env = new QuadEnv(cfgFilename);
     else
         throw runtime_error(string("unknown env: ") + json["env"].get<string>());
 

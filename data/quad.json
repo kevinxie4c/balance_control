@@ -1,0 +1,225 @@
+{
+    "name": "torso",
+    "pos": [0, 0.6, 0],
+    "mass": 20,
+    "COM": [0, 0, 0],
+    "MOI": [0.162667, 1.162667, 1.133333],
+    "type": "free",
+    "shape": [
+        {
+            "type": "box",
+            "size": [0.8, 0.2, 0.24],
+            "pos": [0, 0, 0]
+        }
+    ],
+    "children": [
+        {
+            "name": "frontLeftBase",
+            "pos": [0.4, 0, -0.12],
+            "mass": 0.5,
+            "COM": [0, 0, -0.05],
+            "MOI": [0.000521, 0.000521, 0.000208],
+            "type": "revolute",
+            "axis": "x",
+            "shape": [
+                {
+                    "type": "box",
+                    "size": [0.05, 0.05, 0.1],
+                    "pos": [0, 0, -0.05]
+                }
+            ],
+            "children": [
+                {
+                    "name": "frontLeftUpper",
+                    "pos": [0, 0, -0.10],
+                    "mass": 2,
+                    "COM": [0, -0.15, 0],
+                    "MOI": [0.015417, 0.000833, 0.015417],
+                    "type": "revolute",
+                    "axis": "z",
+                    "shape": [
+                        {
+                            "type": "box",
+                            "size": [0.05, 0.3, 0.05],
+                            "pos": [0, -0.15, 0]
+                        }
+                    ],
+                    "children": [
+                        {
+                            "name": "frontLeftLower",
+                            "pos": [0, -0.3, 0],
+                            "mass": 2,
+                            "COM": [0, -0.15, 0],
+                            "MOI": [0.015267, 0.000533, 0.015267],
+                            "type": "revolute",
+                            "axis": "z",
+                            "shape": [
+                                {
+                                    "type": "box",
+                                    "size": [0.04, 0.3, 0.04],
+                                    "pos": [0, -0.15, 0]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "frontRightBase",
+            "pos": [0.4, 0, 0.12],
+            "mass": 0.5,
+            "COM": [0, 0, 0.05],
+            "MOI": [0.000521, 0.000521, 0.000208],
+            "type": "revolute",
+            "axis": "x",
+            "shape": [
+                {
+                    "type": "box",
+                    "size": [0.05, 0.05, 0.1],
+                    "pos": [0, 0, 0.05]
+                }
+            ],
+            "children": [
+                {
+                    "name": "frontRightUpper",
+                    "pos": [0, 0, 0.10],
+                    "mass": 2,
+                    "COM": [0, -0.15, 0],
+                    "MOI": [0.015417, 0.000833, 0.015417],
+                    "type": "revolute",
+                    "axis": "z",
+                    "shape": [
+                        {
+                            "type": "box",
+                            "size": [0.05, 0.3, 0.05],
+                            "pos": [0, -0.15, 0]
+                        }
+                    ],
+                    "children": [
+                        {
+                            "name": "frontRightLower",
+                            "pos": [0, -0.3, 0],
+                            "mass": 2,
+                            "COM": [0, -0.15, 0],
+                            "MOI": [0.015267, 0.000533, 0.015267],
+                            "type": "revolute",
+                            "axis": "z",
+                            "shape": [
+                                {
+                                    "type": "box",
+                                    "size": [0.04, 0.3, 0.04],
+                                    "pos": [0, -0.15, 0]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "rearLeftBase",
+            "pos": [-0.4, 0, -0.12],
+            "mass": 0.5,
+            "COM": [0, 0, -0.05],
+            "MOI": [0.000521, 0.000521, 0.000208],
+            "type": "revolute",
+            "axis": "x",
+            "shape": [
+                {
+                    "type": "box",
+                    "size": [0.05, 0.05, 0.1],
+                    "pos": [0, 0, -0.05]
+                }
+            ],
+            "children": [
+                {
+                    "name": "rearLeftUpper",
+                    "pos": [0, 0, -0.10],
+                    "mass": 2,
+                    "COM": [0, -0.15, 0],
+                    "MOI": [0.015417, 0.000833, 0.015417],
+                    "type": "revolute",
+                    "axis": "z",
+                    "shape": [
+                        {
+                            "type": "box",
+                            "size": [0.05, 0.3, 0.05],
+                            "pos": [0, -0.15, 0]
+                        }
+                    ],
+                    "children": [
+                        {
+                            "name": "rearLeftLower",
+                            "pos": [0, -0.3, 0],
+                            "mass": 2,
+                            "COM": [0, -0.15, 0],
+                            "MOI": [0.015267, 0.000533, 0.015267],
+                            "type": "revolute",
+                            "axis": "z",
+                            "shape": [
+                                {
+                                    "type": "box",
+                                    "size": [0.04, 0.3, 0.04],
+                                    "pos": [0, -0.15, 0]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "rearRightBase",
+            "pos": [-0.4, 0, 0.12],
+            "mass": 0.5,
+            "COM": [0, 0, 0.05],
+            "MOI": [0.000521, 0.000521, 0.000208],
+            "type": "revolute",
+            "axis": "x",
+            "shape": [
+                {
+                    "type": "box",
+                    "size": [0.05, 0.05, 0.1],
+                    "pos": [0, 0, 0.05]
+                }
+            ],
+            "children": [
+                {
+                    "name": "rearRightUpper",
+                    "pos": [0, 0, 0.10],
+                    "mass": 2,
+                    "COM": [0, -0.15, 0],
+                    "MOI": [0.015417, 0.000833, 0.015417],
+                    "type": "revolute",
+                    "axis": "z",
+                    "shape": [
+                        {
+                            "type": "box",
+                            "size": [0.05, 0.3, 0.05],
+                            "pos": [0, -0.15, 0]
+                        }
+                    ],
+                    "children": [
+                        {
+                            "name": "rearRightLower",
+                            "pos": [0, -0.3, 0],
+                            "mass": 2,
+                            "COM": [0, -0.15, 0],
+                            "MOI": [0.015267, 0.000533, 0.015267],
+                            "type": "revolute",
+                            "axis": "z",
+                            "shape": [
+                                {
+                                    "type": "box",
+                                    "size": [0.04, 0.3, 0.04],
+                                    "pos": [0, -0.15, 0]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

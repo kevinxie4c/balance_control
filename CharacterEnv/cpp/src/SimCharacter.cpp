@@ -111,7 +111,12 @@ void SimCharacter::createJoint(nlohmann::json json, dart::dynamics::BodyNodePtr 
 	if (json.contains("MOI"))
 	{
 	    std::vector<double> moi = json["MOI"].get<std::vector<double>>();
-	    bn->setMomentOfInertia(moi[0], moi[1], moi[2], moi[3], moi[4], moi[5]);
+            if (moi.size() == 3) 
+                bn->setMomentOfInertia(moi[0], moi[1], moi[2]);
+            else if (moi.size() == 6)
+                bn->setMomentOfInertia(moi[0], moi[1], moi[2], moi[3], moi[4], moi[5]);
+            else
+                std::cerr << "wrong MOI" << std::endl;
 	}
 	if (json.contains("shape"))
 	{
