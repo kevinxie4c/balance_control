@@ -1,0 +1,35 @@
+{
+    "name": "cart",
+    "pos": [0, 0, 0],
+    "mass": 1,
+    "COM": [0, 0, 0],
+    "MOI": [0, 0, 0],
+    "type": "prismatic",
+    "axis": "x",
+    "shape": [
+        {
+            "type": "box",
+            "size": [0.2, 0.1, 0.1],
+            "pos": [0, 0, 0],
+            "color": [0.2, 0.2, 0.2]
+        }
+    ],
+    "children": [
+        {
+            "name": "pole",
+            "pos": [0, 0, 0],
+            "mass": 0.1,
+            "COM": [0, 0.5, 0],
+            "MOI": [0, 0, 0],
+            "type": "revolute",
+            "axis": "z",
+            "shape": [
+                {
+                    "type": "box",
+                    "size": [0.05, 1.0, 0.05],
+                    "pos": [0, 0.5, 0]
+                }
+            ]
+        }
+    ]
+}

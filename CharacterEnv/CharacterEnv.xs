@@ -124,7 +124,22 @@ CODE:
 	THIS->skeleton->setPositions(v);
     }
     else
-	croak("CharacterEnv::set_positions(...) -- incorrect number of arguments");
+	croak("CharacterEnv::set_positions_list(...) -- incorrect number of arguments");
+CLEANUP:
+    free(array);
+
+
+void
+CharacterEnv::set_velocities_list(doubleArray * array, ...)
+CODE:
+    if (ix_array == THIS->skeleton->getNumDofs())
+    {
+	Eigen::VectorXd v(ix_array);
+	memcpy(v.data(), array, ix_array * sizeof(double));
+	THIS->skeleton->setVelocities(v);
+    }
+    else
+	croak("CharacterEnv::set_velocities_list(...) -- incorrect number of arguments");
 CLEANUP:
     free(array);
 
@@ -142,6 +157,20 @@ PREINIT:
     U32 size_RETVAL;
 CODE:
     Eigen::VectorXd v = THIS->skeleton->getPositions();
+    size_RETVAL = v.size();
+    RETVAL = v.data();
+OUTPUT:
+    RETVAL
+CLEANUP:
+    XSRETURN(size_RETVAL);
+
+
+doubleArray *
+CharacterEnv::get_velocities_list()
+PREINIT:
+    U32 size_RETVAL;
+CODE:
+    Eigen::VectorXd v = THIS->skeleton->getVelocities();
     size_RETVAL = v.size();
     RETVAL = v.data();
 OUTPUT:
@@ -223,6 +252,15 @@ bool
 CharacterEnv::is_playing()
 CODE:
     RETVAL = THIS->playing;
+OUTPUT:
+    RETVAL
+
+
+bool
+CharacterEnv::req_step()
+CODE:
+    RETVAL = THIS->reqStep;
+    THIS->reqStep = false;
 OUTPUT:
     RETVAL
 
