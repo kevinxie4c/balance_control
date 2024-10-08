@@ -2,7 +2,7 @@
 
 Install Perl packages
 ```
-cpan ExtUtils::PkgConfig PDL GD File::Slurp
+cpan ExtUtils::PkgConfig PDL GD File::Slurp JSON
 ```
 
 Install MXNet and Perl binding following the instructions [here](https://mxnet.apache.org/versions/1.5.0/install/).

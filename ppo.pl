@@ -6,6 +6,8 @@ use AI::MXNet::AutoGrad qw(autograd);
 use Getopt::Long qw(:config no_ignore_case);
 use Time::HiRes qw(time);
 use List::Util qw(shuffle);
+use File::Slurp;
+use JSON;
 use Data::Dumper;
 use strict;
 use warnings;
@@ -27,6 +29,7 @@ my $steps_per_itr = 1024;
 my $num_itrs = 5000;
 my $mini_batch_size = 256;
 my $a_scale = 1;
+my $parameters = undef;
 my $config_file = undef;
 my $print_help = 0;
 
@@ -45,6 +48,7 @@ GetOptions(
     'N|num_itrs=i'         => \$num_itrs,
     'K|steps_per_itr=i'    => \$steps_per_itr,
     'a|a_scale=f'          => \$a_scale,
+    'P|parameters=s'       => \$parameters,
     'h|help'               => \$print_help,
 );
 
@@ -62,6 +66,7 @@ options:
     -N --num_itrs=INT
     -K --steps_per_itr=INT
     -a --a_scale=FLOAT
+    -P --parameters=STRING
     -h --help
 HELP_MSG
 }
@@ -216,15 +221,10 @@ sub mlp {
     $activation = 'tanh' unless defined $activation;
     my $net = nn->Sequential;
     $net->name_scope(sub {
-            my $i = 0;
             for my $size (@$sizes) {
-                if ($i < $#$sizes) {
-                    $net->add(nn->Dense($size, activation => $activation));
-                } else {
-                    $net->add(nn->Dense($size)); # linear activation for the last layer
-                }
-                ++$i;
+                $net->add(nn->Dense($size, activation => $activation));
             }
+            $net->add(nn->Dense(1)); # linear activation for the last layer
         });
     return $net;
 }
@@ -358,12 +358,24 @@ my $lam = 0.97;
 my $target_kl = 0.01;
 my $policy_learning_rate = 1e-3;
 my $value_function_learning_rate = 1e-2;
-my $actor_net = ActorModel->new(sizes => [64, 64],  activation => 'relu');
+my $actor_layers = [64, 64];
+my $critic_layers = [64, 64];
+
+if (defined($parameters)) {
+    die "Cannot find the parameter file!" unless -f $parameters;
+    my $para = decode_json(read_file($parameters));
+    $policy_learning_rate = $para->{policy_learning_rate} if defined $para->{policy_learning_rate};
+    $value_function_learning_rate = $para->{value_function_learning_rate} if defined $para->{value_function_learning_rate};
+    $actor_layers = $para->{actor_layers} if defined $para->{actor_layers};
+    $critic_layers = $para->{critic_layers} if defined $para->{critic_layers};
+}
+
+my $actor_net = ActorModel->new(sizes => $actor_layers,  activation => 'relu');
 #print $actor_net;
-my $critic_net = mlp([64, 64, 1], 'relu');
+my $critic_net = mlp($critic_layers, 'relu');
 #print $critic_net;
 if (defined($load_model)) {
-    die "Canno find the model files!" unless -d $load_model and -f "$load_model/actor.par" and -f "$load_model/critic.par";
+    die "Cannot find the model files!" unless -d $load_model and -f "$load_model/actor.par" and -f "$load_model/critic.par";
     print "load actor from $load_model/actor.par\n";
     $actor_net->load_parameters("$load_model/actor.par");
     print "load critic from $load_model/critic.par\n";
