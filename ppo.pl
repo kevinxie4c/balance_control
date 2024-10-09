@@ -543,7 +543,7 @@ for my $itr (1 .. $num_itrs) {
 
     #    if ($done || $t == $steps_per_itr) {
     #        #exit;  # debug
-    #        my $last_value = $value_t;
+    #        my $last_value = $done ? 0 : $critic_net->($observation)->aspdl->at(0, 0);
     #        $buffer->finish_trajectory($last_value);
     #        $sum_return += $episode_return;
     #        $sum_length += $episode_length;
@@ -585,7 +585,7 @@ for my $itr (1 .. $num_itrs) {
             $buffers[$id]->store($observation[$id], $action[$id], $reward, $value_t, $logprobability_t[$id]);
 
             if ($done) {
-                my $last_value = $value_t;
+                my $last_value = 0;
                 $buffers[$id]->finish_trajectory($last_value);
                 $num_episodes += 1;
                 $env->reset;
@@ -635,7 +635,10 @@ for my $itr (1 .. $num_itrs) {
 
             $buffers[$id]->store($observation[$id], $action[$id], $reward, $value_t, $logprobability_t[$id]);
 
-            my $last_value = $value_t;
+            my @state_list = $env->get_state_list; # get last observation for last_value
+            $observation[$id] = mx->nd->array([[@state_list]]);
+            $observation[$id] = $state_normalizer->normalize($observation[$id]);
+            my $last_value = $critic_net->($observation[$id])->aspdl->at(0, 0);
             $buffers[$id]->finish_trajectory($last_value);
             $num_episodes += 1;
             $env->reset;
