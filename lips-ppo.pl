@@ -28,7 +28,8 @@ my $num_itrs = 5000;
 my $mini_batch_size = 256;
 my $a_scale = 1;
 my $config_file = undef;
-my $alpha = 1e-3;
+my $alpha = 1e-1;
+my $enable_clipping = 0;
 my $print_help = 0;
 
 GetOptions(
@@ -528,6 +529,26 @@ sub set_policy_jacobian {
     }
 }
 
+sub compute_policy_jacobian {
+    my ($env, $observation) = @_;
+    $observation->attach_grad;
+    my $action;
+    my $J = mx->nd->zeros([$action_size, $state_size]);
+    for my $idx (0 .. $action_size - 1) {
+        my $mask = mx->nd->zeros([$action_size]);
+        autograd->record(sub {
+                my ($mu, $sigma) = $actor_net->($observation);
+                #$action = $mu;   # deterministic
+                $mask->slice($idx) .= 1;
+                $action = mx->nd->dot($mu, $mask);
+            });
+        $action->backward;
+        #print("grad: ", $observation->grad->aspdl);
+        $J->slice($idx) .= $observation->grad;
+    }
+    return $J;
+}
+
 
 #my $buffer = Buffer->new($state_size, $action_size, $steps_per_itr);
 my @buffers;
@@ -571,11 +592,13 @@ if ($play_policy) {
             #print "state: ", $observation->aspdl, "\n";
             $env->set_normalizer_mean($state_normalizer->{ms}{mean}->aspdl->list);
             $env->set_normalizer_std($state_normalizer->{ms}{std}->aspdl->list);
+            my $J = compute_policy_jacobian($env, $observation);
+            print $J->aspdl, "\n";
             set_policy_jacobian($env, $observation);
             my ($mu, $sigma) = $actor_net->($observation);
             my $action = $mu;
             #$action = $actor_net->sample($mu, $sigma);
-            $action = $action->clip(-1, 1);
+            $action = $action->clip(-1, 1) if $enable_clipping;
             print $f_action join(' ', $action->aspdl->list), "\n";
             #print "action: ", $action->aspdl, "\n";
             #$a_scale = 0;
@@ -703,7 +726,11 @@ for my $itr (1 .. $num_itrs) {
         }
         $logprobability_t[$id] = $actor_net->log_prob($action[$id], $mu, $sigma)->aspdl->at(0, 0);
         #$action[$id] = $action[$id]->clip(-1, 1);
-        $env->set_action_list(($action[$id]->clip(-1, 1) * $a_scale)->aspdl->list);
+        if ($enable_clipping) {
+            $env->set_action_list(($action[$id]->clip(-1, 1) * $a_scale)->aspdl->list);
+        } else {
+            $env->set_action_list(($action[$id] * $a_scale)->aspdl->list);
+        }
         $env->set_normalizer_mean($state_normalizer->{ms}{mean}->aspdl->list);
         $env->set_normalizer_std($state_normalizer->{ms}{std}->aspdl->list);
         set_policy_jacobian($env, $observation[$id]);
@@ -826,7 +853,7 @@ POLICY_LOOP:
     until ($env->get_done || $test_length >= $steps_per_itr) {
         my ($mu, $sigma) = $actor_net->($observation);
         my $action = $mu;   # deterministic
-        $action = $action->clip(-1, 1);
+        $action = $action->clip(-1, 1) if $enable_clipping;
         $env->set_action_list(($action * $a_scale)->aspdl->list);
         $env->set_normalizer_mean($state_normalizer->{ms}{mean}->aspdl->list);
         $env->set_normalizer_std($state_normalizer->{ms}{std}->aspdl->list);
