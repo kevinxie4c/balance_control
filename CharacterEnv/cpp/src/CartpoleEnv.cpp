@@ -4,6 +4,8 @@
 #include "CartpoleEnv.h"
 #include "IOUtil.h"
 
+#define SIM_MODE 2
+
 using namespace std;
 using namespace Eigen;
 using namespace dart::dynamics;
@@ -45,52 +47,76 @@ void CartpoleEnv::reset()
 
 void CartpoleEnv::step()
 {
-    /*
     VectorXd force = (action.array() * scales.array()).matrix();
-    VectorXd q = skeleton->getPositions();
-    VectorXd dq = skeleton->getVelocities();
-    VectorXd ddq = skeleton->getAccelerations();
-    MatrixXd M = skeleton->getMassMatrix();
-    VectorXd C = skeleton->getCoriolisAndGravityForces();
-    //cout << "M\n" << M << endl;
-    //cout << "C\n" << C << endl;
-    MatrixXd aS = MatrixXd::Zero(action.size(), action.size());
-    aS.diagonal() = scales;
-    MatrixXd sS = MatrixXd::Zero(state.size(), state.size());
-    sS.diagonal() = (normalizerStd.array() + 1e-8).matrix().cwiseInverse();
-    //cout << "sS\n" << sS << endl;
-    MatrixXd dsdq(4, 2);
-    dsdq << 1, 0,
-            0, 1,
-            0, 0,
-            0, 0;
-    MatrixXd J = aS * policyJacobian * sS * dsdq;
-    //cout << "pJ\n" << policyJacobian << endl;
-    //cout << "J\n" << J << endl;
     double h = 1.0 / actionRate;
-    //MatrixXd K(2, 2);
-    //MatrixXd D(2, 2);
-    //K << 500, 0,
-    //     0, 500;
-    //D << 0.0, 0.0,
-    //     0.0, 0.0;
-    //force = -K * q - D * dq;
-    //MatrixXd A = (M + h * h * K);
-    MatrixXd A = (M - h * h * J);
-    VectorXd b = M * dq + h * (force - C);
-    //cout << "A\n" << A << endl;
-    //cout << "b\n" << b << endl;
-    VectorXd dq_n = A.inverse() * b;
-    VectorXd q_n = q + h * dq_n;
-    skeleton->setPositions(q_n);
-    skeleton->setVelocities(dq_n);
-    world->setTime(world->getTime() + h);
-    */
+    VectorXd extFrc = Vector2d::Zero();
+    double rem = fmod(world->getTime(), 10.0);
+    if (rem >= 5.0 && rem < 5.2)
+        extFrc[0] = 10;
+    else if (rem >= 10.0 && rem < 10.2)
+        extFrc[0] = -10;
+    force += extFrc;
+#if SIM_MODE == 1
+        VectorXd q = skeleton->getPositions();
+        VectorXd dq = skeleton->getVelocities();
+        MatrixXd aS = MatrixXd::Zero(action.size(), action.size());
+        aS.diagonal() = scales;
+        MatrixXd sS = MatrixXd::Zero(state.size(), state.size());
+        sS.diagonal() = (normalizerStd.array() + 1e-8).matrix().cwiseInverse();
+        MatrixXd dsdq(4, 2);
+        dsdq << 1, 0,
+                0, 1,
+                0, 0,
+                0, 0;
+        MatrixXd J = aS * policyJacobian * sS * dsdq;
+#endif
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
-        VectorXd force = (action.array() * scales.array()).matrix();
+#if SIM_MODE == 0
+        VectorXd q = skeleton->getPositions();
+        VectorXd dq = skeleton->getVelocities();
+        VectorXd ddq = skeleton->getAccelerations();
+        MatrixXd M = skeleton->getMassMatrix();
+        VectorXd C = skeleton->getCoriolisAndGravityForces();
+        //cout << "M\n" << M << endl;
+        //cout << "C\n" << C << endl;
+        MatrixXd aS = MatrixXd::Zero(action.size(), action.size());
+        aS.diagonal() = scales;
+        MatrixXd sS = MatrixXd::Zero(state.size(), state.size());
+        sS.diagonal() = (normalizerStd.array() + 1e-8).matrix().cwiseInverse();
+        //cout << "sS\n" << sS << endl;
+        MatrixXd dsdq(4, 2);
+        dsdq << 1, 0,
+                0, 1,
+                0, 0,
+                0, 0;
+        MatrixXd J = aS * policyJacobian * sS * dsdq;
+        //cout << "pJ\n" << policyJacobian << endl;
+        //cout << "J\n" << J << endl;
+        //MatrixXd K(2, 2);
+        //MatrixXd D(2, 2);
+        //K << 500, 0,
+        //     0, 500;
+        //D << 0.0, 0.0,
+        //     0.0, 0.0;
+        //force = -K * q - D * dq;
+        //MatrixXd A = (M + h * h * K);
+        MatrixXd A = (M - h * h * J);
+        VectorXd b = M * dq + h * (force - C);
+        //cout << "A\n" << A << endl;
+        //cout << "b\n" << b << endl;
+        VectorXd dq_n = A.inverse() * b;
+        skeleton->setVelocities(dq_n);
+        skeleton->integratePositions(h);
+        world->setTime(world->getTime() + h);
+#elif SIM_MODE == 1
+        VectorXd f = force + i * h * J * dq;
+        skeleton->setForces(f);
+        world->step();
+#else
         skeleton->setForces(force);
         world->step();
+#endif
     }
     updateState();
 }

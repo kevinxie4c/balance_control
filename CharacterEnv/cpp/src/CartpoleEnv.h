@@ -14,7 +14,7 @@ class CartpoleEnv: public CharacterEnv
         void updateState();
 
         int actionRate = 10;
-        int forceRate = 10;
+        int forceRate = 100;
 
         Eigen::VectorXd scales;
 };
