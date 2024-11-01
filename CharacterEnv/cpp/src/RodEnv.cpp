@@ -32,6 +32,8 @@ RodEnv::RodEnv(const char *cfgFilename)
     state = VectorXd(skeleton->getNumDofs() * 2);
     action = VectorXd(skeleton->getNumDofs());
 
+    distribution = std::uniform_real_distribution<double>(-1.0, 1.0);
+
     reset();
 }
 
@@ -52,11 +54,9 @@ void RodEnv::step()
     Vector3d extFrc = Vector3d::Zero();
     Vector3d offset = Vector3d::Zero();
     offset[1] = 0.5;
-    double rem = fmod(world->getTime(), 20.0);
+    double rem = fmod(world->getTime(), 10.0);
     if (rem >= 5.0 && rem < 5.2)
-        extFrc[0] = 1;
-    else if (rem >= 15.0 && rem < 15.2)
-        extFrc[0] = -1;
+        extFrc[0] = distribution(generator);
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
         skeleton->getBodyNode(1)->addExtForce(extFrc, offset);

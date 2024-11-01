@@ -3,6 +3,7 @@
 
 #include <Eigen/Core>
 #include <dart/dart.hpp>
+#include <random>
 #include "CharacterEnv.h"
 
 class RodEnv: public CharacterEnv
@@ -17,6 +18,9 @@ class RodEnv: public CharacterEnv
         int forceRate = 100;
 
         Eigen::VectorXd scales;
+
+        std::default_random_engine generator;
+        std::uniform_real_distribution<double> distribution;
 };
 
 #endif
