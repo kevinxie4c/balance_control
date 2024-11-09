@@ -75,6 +75,46 @@ sub get_observations {
     return $a;
 }
 
+sub get_obs_buffer {
+    my $self = shift;
+    my $m = $self->get_obs_buffer_matrix;
+    my $a = mx->nd->empty([$m->cols, $m->rows]);
+    CharacterEnv::_matrix2mxar($m, $a);
+    return $a;
+}
+
+sub get_act_buffer {
+    my $self = shift;
+    my $m = $self->get_act_buffer_matrix;
+    my $a = mx->nd->empty([$m->cols, $m->rows]);
+    CharacterEnv::_matrix2mxar($m, $a);
+    return $a;
+}
+
+sub get_adv_buffer {
+    my $self = shift;
+    my $m = $self->get_adv_buffer_matrix;
+    my $a = mx->nd->empty([$m->cols, $m->rows]);
+    CharacterEnv::_matrix2mxar($m, $a);
+    return $a;
+}
+
+sub get_ret_buffer {
+    my $self = shift;
+    my $m = $self->get_ret_buffer_matrix;
+    my $a = mx->nd->empty([$m->cols, $m->rows]);
+    CharacterEnv::_matrix2mxar($m, $a);
+    return $a;
+}
+
+sub get_logp_buffer {
+    my $self = shift;
+    my $m = $self->get_logp_buffer_matrix;
+    my $a = mx->nd->empty([$m->cols, $m->rows]);
+    CharacterEnv::_matrix2mxar($m, $a);
+    return $a;
+}
+
 sub set_means {
     my $self = shift;
     my $a = shift;
@@ -89,6 +129,14 @@ sub set_stds {
     my $m = Eigen::MatrixXf->new($a->shape->[1], $a->shape->[0]);
     CharacterEnv::_mxar2matrix($a, $m);
     $self->set_stds_matrix($m);
+}
+
+sub set_values {
+    my $self = shift;
+    my $a = shift;
+    my $m = Eigen::MatrixXf->new($a->shape->[1], $a->shape->[0]);
+    CharacterEnv::_mxar2matrix($a, $m);
+    $self->set_values_matrix($m);
 }
 
 1;

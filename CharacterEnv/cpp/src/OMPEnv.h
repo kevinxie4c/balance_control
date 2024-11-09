@@ -15,6 +15,7 @@ class OMPEnv
 	OMPEnv(const char *cfgFilename, size_t num_threads);
 	void reset();
 	void step();
+        void trace_back();
 	~OMPEnv();
 
         size_t num_threads;
@@ -23,10 +24,16 @@ class OMPEnv
         Eigen::MatrixXd velocities;
         Eigen::MatrixXd means, stds;
         Eigen::MatrixXd observations;
-        size_t numSample = 20, numSave = 4;
+        Eigen::MatrixXd values;
+        size_t numSample = 2000, numSave = 400;
         size_t numObs; // Why need this?
-        std::vector<std::shared_ptr<Sample>> savedSamples;
+        std::vector<std::vector<std::shared_ptr<Sample>>> savedSamples;
         std::vector<StdNormalDistVec> samplers;
+
+        Eigen::MatrixXd obs_buffer, act_buffer, adv_buffer, ret_buffer, logp_buffer;
+
+        double gamma = 0.99;
+        double lam = 0.97;
 };
 
 #endif

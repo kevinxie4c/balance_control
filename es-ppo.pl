@@ -525,18 +525,117 @@ for my $itr (1 .. $num_itrs) {
     $omp_env->reset;
     my ($sum_return, $sum_length, $num_episodes) = (0, 0, 0);
 
-    for my $i (1 .. 5) {
+    my $prev_time = time;
+    for my $i (1 .. 20) {
+        #print "i: $i\n";
         my $observations = $omp_env->get_observations;
-        print "o:\n", $observations->aspdl, "\n";
+        #print "o:\n", $observations->aspdl, "\n";
+        #print "o->shape: ", join('x', @{$observations->shape}), "\n";
         $observations = $state_normalizer->normalize($observations);
         my ($means, $stds) = $actor_net->($observations);
         #print "mean:\n", $means->aspdl, "\n";
         #print "std:\n", $stds->aspdl, "\n";
         $omp_env->set_means($means);
         $omp_env->set_stds($stds);
+        my $values = $critic_net->($observations);
+        $omp_env->set_values($values);
         $omp_env->step;
     }
-    exit;
+    $omp_env->trace_back;
+
+    my $sim_time = time - $prev_time;
+    $prev_time = time;
+
+    #print $omp_env->get_obs_buffer->aspdl;
+    #print $omp_env->get_act_buffer->aspdl;
+    #print $omp_env->get_adv_buffer->aspdl;
+    #print $omp_env->get_ret_buffer->aspdl;
+    #print $omp_env->get_logp_buffer->aspdl;
+    my $all_observation_buffer = $omp_env->get_obs_buffer;
+    my $all_action_buffer = $omp_env->get_act_buffer;
+    my $all_advantage_buffer = $omp_env->get_adv_buffer;
+    my $all_return_buffer = $omp_env->get_ret_buffer;
+    my $all_logprobability_buffer = $omp_env->get_logp_buffer;
+    my $batch_size = $all_logprobability_buffer->shape->[0];
+    $num_train_itrs = int($batch_size / $mini_batch_size);
+
+    my $loss_sum = 0;
+    my $itrs_sum = 0;
+    my ($policy_loss, $kl);
+POLICY_LOOP:
+    for my $epoch (1 .. $num_epochs) {
+        for my $i (0 .. $num_train_itrs - 1) {
+            my $a = $i * $mini_batch_size;
+            my $b = $a + $mini_batch_size - 1;
+            $b = $batch_size - 1 if $b >= $batch_size;
+            ($policy_loss, $kl) = train_policy($all_observation_buffer->slice([$a, $b]), $all_action_buffer->slice([$a, $b]), $all_logprobability_buffer->slice([$a, $b]), $all_advantage_buffer->slice([$a, $b]));
+            my ($m, $s) = $actor_net->(mx->nd->ones([1, $state_size]));
+            if ($m =~ /NaN/ || $s =~ /NaN/) {
+                print "NaN\n";
+            }
+            $loss_sum += $policy_loss;
+            ++$itrs_sum;
+            if ($kl->aspdl->sclr > 1.5 * $target_kl) {
+                last POLICY_LOOP;
+            }
+        }
+    }
+    $policy_loss = $loss_sum / $itrs_sum;
+
+    $loss_sum = 0;
+    $itrs_sum = 0;
+    my $value_loss;
+    for my $epoch (1 .. $num_epochs) {
+        for my $i (0 .. $num_train_itrs - 1) {
+            my $a = $i * $mini_batch_size;
+            my $b = $a + $mini_batch_size - 1;
+            $b = $batch_size - 1 if $b >= $batch_size;
+            $value_loss = train_value_function($all_observation_buffer->slice([$a, $b]), $all_return_buffer->slice([$a, $b]));
+            $loss_sum += $value_loss;
+            ++$itrs_sum;
+        }
+    }
+    $value_loss = $loss_sum / $itrs_sum;
+    my $train_time = time - $prev_time;
+
+    my $test_return = 0;
+    my $test_length = 0;
+    my $acc_gamma = 1;
+    my $env = $envs[0];
+    $env->reset;
+    my $observation = mx->nd->array([[$env->get_state_list]]);
+    $observation = $state_normalizer->normalize($observation, 0);
+    until ($env->get_done || $test_length >= $steps_per_itr) {
+        my ($mu, $sigma) = $actor_net->($observation);
+        my $action = $mu;   # deterministic
+        $action = $action->clip(-1, 1);
+        $env->set_action_list(($action * $a_scale)->aspdl->list);
+        $env->step;
+        my $reward = $env->get_reward;
+        $test_return += $acc_gamma * $reward;
+        $acc_gamma *= $gamma;
+        ++$test_length;
+        $observation = mx->nd->array([[$env->get_state_list]]);
+        $observation = $state_normalizer->normalize($observation, 0);
+    }
+
+    $num_episodes = 1;
+    print "Itr: $itr. Sigma: $g_sigma. Mean Return: ", $sum_return / $num_episodes, ". Mean Length: ", $sum_length / $num_episodes, ". Test Return: $test_return. Test Length: $test_length. Policy Loss: ", $policy_loss->aspdl->sclr, ". Value Loss: ", $value_loss->aspdl->sclr, ". Time: $sim_time, $train_time\n";
+    print $actor_net->logstd->data->aspdl, "\n";
+    print $f_ret $sum_return / $num_episodes, " ", $sum_length / $num_episodes, " $test_return $test_length\n";
+
+    if ($itr % $save_interval == 0) {
+        $actor_net->save_parameters(sprintf("$save_model/actor-%06d.par", $itr));
+        $critic_net->save_parameters(sprintf("$save_model/critic-%06d.par", $itr));
+        $state_normalizer->save(sprintf("%06d", $itr));
+    }
+
+    if ($best_return < $test_return) {
+        $best_return = $test_return;
+        $actor_net->save_parameters("$save_model/actor-best.par");
+        $critic_net->save_parameters("$save_model/critic-best.par");
+        $state_normalizer->save("best");
+    }
 
     last if $interrupt;
 }

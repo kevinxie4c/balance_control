@@ -13,12 +13,14 @@ class Sample
         Eigen::VectorXd position;
         Eigen::VectorXd velocity;
         Eigen::VectorXd observation;
-        Eigen::VectorXd action;
+        Eigen::VectorXd action; // action taken from the parent to the current
         double logprob;
         double reward;
         double done;
-        double retval;
-        double value;
+        double retval; // "real" value
+        double value; // value based on the critic
+        double delta;
+        double advantage;
 
         std::shared_ptr<Sample> parent = nullptr;
 };

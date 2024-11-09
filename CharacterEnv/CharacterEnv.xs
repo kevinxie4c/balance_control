@@ -399,6 +399,12 @@ CODE:
     THIS->stds = m->cast<double>();
 
 
+void
+OMPEnv::set_values_matrix(Eigen::MatrixXf* m)
+CODE:
+    THIS->values = m->cast<double>();
+
+
 Eigen::MatrixXf *
 OMPEnv::get_observations_matrix()
 CODE:
@@ -406,3 +412,52 @@ CODE:
     RETVAL = m;
 OUTPUT:
     RETVAL
+
+
+Eigen::MatrixXf *
+OMPEnv::get_obs_buffer_matrix()
+CODE:
+    Eigen::MatrixXf *m = new Eigen::MatrixXf(THIS->obs_buffer.cast<float>());
+    RETVAL = m;
+OUTPUT:
+    RETVAL
+
+
+Eigen::MatrixXf *
+OMPEnv::get_act_buffer_matrix()
+CODE:
+    Eigen::MatrixXf *m = new Eigen::MatrixXf(THIS->act_buffer.cast<float>());
+    RETVAL = m;
+OUTPUT:
+    RETVAL
+
+
+Eigen::MatrixXf *
+OMPEnv::get_adv_buffer_matrix()
+CODE:
+    Eigen::MatrixXf *m = new Eigen::MatrixXf(THIS->adv_buffer.cast<float>());
+    RETVAL = m;
+OUTPUT:
+    RETVAL
+
+
+Eigen::MatrixXf *
+OMPEnv::get_ret_buffer_matrix()
+CODE:
+    Eigen::MatrixXf *m = new Eigen::MatrixXf(THIS->ret_buffer.cast<float>());
+    RETVAL = m;
+OUTPUT:
+    RETVAL
+
+
+Eigen::MatrixXf *
+OMPEnv::get_logp_buffer_matrix()
+CODE:
+    Eigen::MatrixXf *m = new Eigen::MatrixXf(THIS->logp_buffer.cast<float>());
+    RETVAL = m;
+OUTPUT:
+    RETVAL
+
+
+void
+OMPEnv::trace_back()
