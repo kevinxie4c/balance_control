@@ -34,6 +34,7 @@ class OMPEnv
 
         double gamma = 0.99;
         double lam = 0.97;
+        double avg_ret = 0;
 };
 
 #endif

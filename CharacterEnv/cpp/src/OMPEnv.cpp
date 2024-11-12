@@ -76,11 +76,15 @@ void OMPEnv::step()
     }
     numObs = savedSamples.back().size();
     //cout << "numObs: " << numObs << endl;
-    observations = MatrixXd(savedSamples.back()[0]->observation.size(), numObs);
+    observations = MatrixXd(envs[0]->state.size(), numObs);
     if (numObs > 0)
     {
         for (size_t i = 0; i < numObs; ++i)
             observations.col(i) = savedSamples.back()[i]->observation;
+    }
+    else
+    {
+        savedSamples.pop_back();
     }
 }
 
@@ -124,11 +128,10 @@ void OMPEnv::trace_back()
         }
     }
     
-    double avg_ret = 0;
+    avg_ret = 0;
     for (shared_ptr<Sample> &s: savedSamples[0])
         avg_ret += s->retval;
     avg_ret /= savedSamples[0].size();
-    cout << avg_ret << endl;
 }
 
 OMPEnv::~OMPEnv()

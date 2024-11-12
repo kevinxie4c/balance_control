@@ -526,11 +526,15 @@ for my $itr (1 .. $num_itrs) {
     my ($sum_return, $sum_length, $num_episodes) = (0, 0, 0);
 
     my $prev_time = time;
-    for my $i (1 .. 20) {
-        #print "i: $i\n";
+    #for my $i (1 .. 100) {
+    my $i = 1;
+    while (1) {
+        print "i: $i\n";
+        ++$i;
         my $observations = $omp_env->get_observations;
         #print "o:\n", $observations->aspdl, "\n";
-        #print "o->shape: ", join('x', @{$observations->shape}), "\n";
+        print "o->shape: ", join('x', @{$observations->shape}), "\n";
+        last if $observations->shape->[0] == 0;
         $observations = $state_normalizer->normalize($observations);
         my ($means, $stds) = $actor_net->($observations);
         #print "mean:\n", $means->aspdl, "\n";
@@ -542,6 +546,7 @@ for my $itr (1 .. $num_itrs) {
         $omp_env->step;
     }
     $omp_env->trace_back;
+    my $avg_ret = $omp_env->get_avg_ret;
 
     my $sim_time = time - $prev_time;
     $prev_time = time;
@@ -620,7 +625,7 @@ POLICY_LOOP:
     }
 
     $num_episodes = 1;
-    print "Itr: $itr. Sigma: $g_sigma. Mean Return: ", $sum_return / $num_episodes, ". Mean Length: ", $sum_length / $num_episodes, ". Test Return: $test_return. Test Length: $test_length. Policy Loss: ", $policy_loss->aspdl->sclr, ". Value Loss: ", $value_loss->aspdl->sclr, ". Time: $sim_time, $train_time\n";
+    print "Itr: $itr. Sigma: $g_sigma. Mean Return: ", $avg_ret, ". Test Return: $test_return. Test Length: $test_length. Policy Loss: ", $policy_loss->aspdl->sclr, ". Value Loss: ", $value_loss->aspdl->sclr, ". Time: $sim_time, $train_time\n";
     print $actor_net->logstd->data->aspdl, "\n";
     print $f_ret $sum_return / $num_episodes, " ", $sum_length / $num_episodes, " $test_return $test_length\n";
 

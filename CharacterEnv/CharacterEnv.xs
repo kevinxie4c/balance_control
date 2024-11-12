@@ -461,3 +461,11 @@ OUTPUT:
 
 void
 OMPEnv::trace_back()
+
+
+double
+OMPEnv::get_avg_ret()
+CODE:
+    RETVAL = THIS->avg_ret;
+OUTPUT:
+    RETVAL
