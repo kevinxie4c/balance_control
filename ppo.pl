@@ -507,6 +507,7 @@ if ($play_policy) {
 open my $f_ret, '>', "$save_model/return_length.txt";
 
 my $best_return = '-inf';
+my $total_num_samples = 0;
 
 for my $itr (1 .. $num_itrs) {
     $g_sigma = $sigma_begin * ($num_itrs - $itr + 1) / ($num_itrs - 1) + $sigma_end * ($itr - 1) / ($num_itrs - 1);
@@ -600,7 +601,7 @@ for my $itr (1 .. $num_itrs) {
             @state_list = (-1) x @state_list;
         }
         $observation[$id] = mx->nd->array([[@state_list]]);
-        $observation[$id] = $state_normalizer->normalize($observation[$id]);
+        #$observation[$id] = $state_normalizer->normalize($observation[$id]);
         my ($mu, $sigma) = $actor_net->($observation[$id]);
         $action[$id] = $actor_net->sample($mu, $sigma);
         if ($action[$id]->aspdl =~ /NaN/) {
@@ -637,7 +638,7 @@ for my $itr (1 .. $num_itrs) {
 
             my @state_list = $env->get_state_list; # get last observation for last_value
             $observation[$id] = mx->nd->array([[@state_list]]);
-            $observation[$id] = $state_normalizer->normalize($observation[$id]);
+            #$observation[$id] = $state_normalizer->normalize($observation[$id]);
             my $last_value = $critic_net->($observation[$id])->aspdl->at(0, 0);
             $buffers[$id]->finish_trajectory($last_value);
             $num_episodes += 1;
@@ -669,6 +670,7 @@ for my $itr (1 .. $num_itrs) {
     my $all_return_buffer = mx->nd->concat(@return_buffers, dim => 0);
     my $all_logprobability_buffer = mx->nd->concat(@logprobability_buffers, dim => 0);
     die "wrong size" if $all_observation_buffer->shape->[0] != $steps_per_itr;
+    $total_num_samples += $steps_per_itr;
 
     my $indices = pdl(shuffle(0 .. $steps_per_itr-1));
     $all_observation_buffer = reorder($all_observation_buffer, $indices);
@@ -727,7 +729,7 @@ POLICY_LOOP:
     my $env = $envs[0];
     $env->reset;
     my $observation = mx->nd->array([[$env->get_state_list]]);
-    $observation = $state_normalizer->normalize($observation, 0);
+    #$observation = $state_normalizer->normalize($observation, 0);
     until ($env->get_done || $test_length >= $steps_per_itr) {
         my ($mu, $sigma) = $actor_net->($observation);
         my $action = $mu;   # deterministic
@@ -739,12 +741,12 @@ POLICY_LOOP:
         $acc_gamma *= $gamma;
         ++$test_length;
         $observation = mx->nd->array([[$env->get_state_list]]);
-        $observation = $state_normalizer->normalize($observation, 0);
+        #$observation = $state_normalizer->normalize($observation, 0);
     }
 
     print "Itr: $itr. Sigma: $g_sigma. Mean Return: ", $sum_return / $num_episodes, ". Mean Length: ", $sum_length / $num_episodes, ". Test Return: $test_return. Test Length: $test_length. Policy Loss: ", $policy_loss->aspdl->sclr, ". Value Loss: ", $value_loss->aspdl->sclr, ". Decay_frac: $decay_frac. Time: $sim_time, $train_time\n";
     print $actor_net->logstd->data->aspdl, "\n";
-    print $f_ret $sum_return / $num_episodes, " ", $sum_length / $num_episodes, " $test_return $test_length\n";
+    print $f_ret $sum_return / $num_episodes, " ", $sum_length / $num_episodes, " $test_return $test_length $total_num_samples\n";
 
     if ($itr % $save_interval == 0) {
         $actor_net->save_parameters(sprintf("$save_model/actor-%06d.par", $itr));
