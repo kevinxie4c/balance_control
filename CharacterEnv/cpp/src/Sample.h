@@ -23,6 +23,7 @@ class Sample
         double advantage;
 
         std::shared_ptr<Sample> parent = nullptr;
+        std::shared_ptr<Sample> firstChild = nullptr;
 };
 
 class RewardCmp
