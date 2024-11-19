@@ -32,6 +32,7 @@ void OMPEnv::reset()
         observations.col(i) = savedSamples.back()[i]->observation;
         //observations.col(i) = VectorXd::Ones(envs[i]->state.size()) * i;
     }
+    buffer_size = 0;
 }
 
 
@@ -53,12 +54,16 @@ void OMPEnv::step()
             VectorXd x = samplers[id]();
             double logprob = StdNormalDistVec::logProbability(x);
             envs[id]->action = means.col(i) + (stds.col(i).array() * x.array()).matrix();
+            //double logprob = logps(0, i);
+            //envs[id]->action = actions.col(i);
             //cout << "a " << envs[id]->action.transpose() << endl;
 
             envs[id]->step();
 #pragma omp critical (queue_section)
             {
-                queue.push(make_shared<Sample>(sample, logprob, envs[id]));
+                shared_ptr<Sample> s = make_shared<Sample>(sample, logprob, envs[id]);
+                if (s->done == false)
+                    queue.push(s);
                 if (queue.size() > numSave)
                     queue.pop();
             }
@@ -71,9 +76,11 @@ void OMPEnv::step()
         if (queue.top()->done == false)
         {
             savedSamples.back().push_back(queue.top());
+            //cout << queue.top()->reward << " ";
         }
         queue.pop();
     }
+    //cout << endl;
     numObs = savedSamples.back().size();
     //cout << "numObs: " << numObs << endl;
     observations = MatrixXd(envs[0]->state.size(), numObs);
@@ -86,13 +93,15 @@ void OMPEnv::step()
     {
         savedSamples.pop_back();
     }
+    buffer_size += numObs;
 }
 
 void OMPEnv::trace_back()
 {
     size_t n = 0;
     for (shared_ptr<Sample> &s: savedSamples.back())
-        s->retval = s->value;
+        //s->retval = s->value;
+        s->retval = 0;
     for (int i = savedSamples.size() - 1; i > 0; --i)
     {
         for (shared_ptr<Sample> &s: savedSamples[i])
@@ -100,20 +109,27 @@ void OMPEnv::trace_back()
             double r = s->reward + gamma * s->retval;
             if (r > s->parent->retval)
             {
+                s->parent->firstChild = s;
                 s->parent->retval = r;
                 //s->parent->delta = s->reward + gamma * s->value - s->parent->value;
                 //s->parent->advantage = s->parent->delta + gamma * lam * s->advantage;
                 s->delta = s->reward + gamma * s->value - s->parent->value;
-                s->advantage = s->delta + gamma * lam * s->advantage;
+                if (s->firstChild == nullptr)
+                    s->advantage = s->delta;
+                else
+                    s->advantage = s->delta + gamma * lam * s->firstChild->advantage;
             }
         }
         n += savedSamples[i].size();
     }
     obs_buffer = Eigen::MatrixXd::Zero(envs[0]->state.size(), n);
     act_buffer = Eigen::MatrixXd::Zero(envs[0]->action.size(), n);
-    adv_buffer = Eigen::MatrixXd::Zero(1, n);
-    ret_buffer = Eigen::MatrixXd::Zero(1, n);
-    logp_buffer = Eigen::MatrixXd::Zero(1, n);
+    //adv_buffer = Eigen::MatrixXd::Zero(1, n);
+    //ret_buffer = Eigen::MatrixXd::Zero(1, n);
+    //logp_buffer = Eigen::MatrixXd::Zero(1, n);
+    adv_buffer = Eigen::MatrixXd::Zero(n, 1);
+    ret_buffer = Eigen::MatrixXd::Zero(n, 1);
+    logp_buffer = Eigen::MatrixXd::Zero(n, 1);
     int j = 0;
     for (int i = 1; i < savedSamples.size(); ++i)
     {
@@ -121,16 +137,25 @@ void OMPEnv::trace_back()
         {
             obs_buffer.col(j) = s->parent->observation;
             act_buffer.col(j) = s->action;
-            adv_buffer(0, j) = s->advantage;
-            ret_buffer(0, j) = s->parent->retval;
-            logp_buffer(0, j) = s->logprob;
+            //adv_buffer(0, j) = s->advantage;
+            //ret_buffer(0, j) = s->parent->retval;
+            //logp_buffer(0, j) = s->logprob;
+            adv_buffer(j, 0) = s->advantage;
+            ret_buffer(j, 0) = s->parent->retval;
+            logp_buffer(j, 0) = s->logprob;
             ++j;
         }
     }
     
     avg_ret = 0;
+    max_ret = numeric_limits<double>::min();
+    max_len = savedSamples.size() - 1;
     for (shared_ptr<Sample> &s: savedSamples[0])
+    {
         avg_ret += s->retval;
+        if (s->retval > max_ret)
+            max_ret = s->retval;
+    }
     avg_ret /= savedSamples[0].size();
 }
 

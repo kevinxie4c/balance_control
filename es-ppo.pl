@@ -492,7 +492,7 @@ if ($play_policy) {
             my ($mu, $sigma) = $actor_net->($observation);
             #my $action = $actor_net->choose_action($observation);
             my $action = $mu;   # deterministic
-            $action = $action->clip(-1, 1);
+            #$action = $action->clip(-1, 1);
             print $f_action join(' ', $action->aspdl->list), "\n";
             #print "action: ", $action->aspdl, "\n";
             #$a_scale = 0;
@@ -519,34 +519,77 @@ if ($play_policy) {
 open my $f_ret, '>', "$save_model/return_length.txt";
 
 my $best_return = '-inf';
+my $total_num_samples = 0;
 
 for my $itr (1 .. $num_itrs) {
     $g_sigma = $sigma_begin * ($num_itrs - $itr + 1) / ($num_itrs - 1) + $sigma_end * ($itr - 1) / ($num_itrs - 1);
     $omp_env->reset;
     my ($sum_return, $sum_length, $num_episodes) = (0, 0, 0);
+    my ($max_return, $max_length) = ('-inf', '-inf');
+    my (@observation_buffers, @action_buffers, @advantage_buffers, @return_buffers, @logprobability_buffers);
+    my $buffer_size = 0;
 
     my $prev_time = time;
     #for my $i (1 .. 100) {
     my $i = 1;
     while (1) {
-        print "i: $i\n";
+        #print "i: $i\n";
         ++$i;
         my $observations = $omp_env->get_observations;
         #print "o:\n", $observations->aspdl, "\n";
-        print "o->shape: ", join('x', @{$observations->shape}), "\n";
-        last if $observations->shape->[0] == 0;
-        $observations = $state_normalizer->normalize($observations);
+        #print "o->shape: ", join('x', @{$observations->shape}), "\n";
+        #last if $observations->shape->[0] == 0 or $i > 500;
+        if ($observations->shape->[0] == 0) {
+            $omp_env->trace_back;
+            $sum_return += $omp_env->get_avg_ret;
+            $sum_length += $omp_env->get_max_len;
+            $num_episodes += 1;
+            $max_return = $omp_env->get_max_ret if $omp_env->get_max_ret > $max_return;
+            $max_length = $omp_env->get_max_len if $omp_env->get_max_len > $max_length;
+            #print $omp_env->get_adv_buffer->aspdl, "\n";
+            #exit;
+            push @observation_buffers, $omp_env->get_obs_buffer;
+            push @action_buffers, $omp_env->get_act_buffer;
+            push @advantage_buffers, $omp_env->get_adv_buffer;
+            push @return_buffers, $omp_env->get_ret_buffer;
+            push @logprobability_buffers, $omp_env->get_logp_buffer;
+            $buffer_size += $omp_env->get_buffer_size;
+            $omp_env->reset;
+            $i = 1;
+            next;
+        }
+        if ($buffer_size + $omp_env->get_buffer_size >= $steps_per_itr) {
+            $omp_env->trace_back;
+            $sum_return += $omp_env->get_avg_ret;
+            $sum_length += $omp_env->get_max_len;
+            $num_episodes += 1;
+            $max_return = $omp_env->get_max_ret if $omp_env->get_max_ret > $max_return;
+            $max_length = $omp_env->get_max_len if $omp_env->get_max_len > $max_length;
+            push @observation_buffers, $omp_env->get_obs_buffer;
+            push @action_buffers, $omp_env->get_act_buffer;
+            push @advantage_buffers, $omp_env->get_adv_buffer;
+            push @return_buffers, $omp_env->get_ret_buffer;
+            push @logprobability_buffers, $omp_env->get_logp_buffer;
+            $buffer_size += $omp_env->get_buffer_size;
+            last;
+        }
+        #$observations = $state_normalizer->normalize($observations);
         my ($means, $stds) = $actor_net->($observations);
+        my $actions = $actor_net->sample($means, $stds);
+        my $logps = $actor_net->log_prob($actions, $means, $stds);
         #print "mean:\n", $means->aspdl, "\n";
         #print "std:\n", $stds->aspdl, "\n";
         $omp_env->set_means($means);
         $omp_env->set_stds($stds);
+        $omp_env->set_actions($actions);
+        $omp_env->set_logps($logps);
         my $values = $critic_net->($observations);
         $omp_env->set_values($values);
         $omp_env->step;
     }
-    $omp_env->trace_back;
-    my $avg_ret = $omp_env->get_avg_ret;
+    #$omp_env->trace_back;
+    #my $avg_ret = $omp_env->get_avg_ret;
+    #my $max_ret = $omp_env->get_max_ret;
 
     my $sim_time = time - $prev_time;
     $prev_time = time;
@@ -556,12 +599,19 @@ for my $itr (1 .. $num_itrs) {
     #print $omp_env->get_adv_buffer->aspdl;
     #print $omp_env->get_ret_buffer->aspdl;
     #print $omp_env->get_logp_buffer->aspdl;
-    my $all_observation_buffer = $omp_env->get_obs_buffer;
-    my $all_action_buffer = $omp_env->get_act_buffer;
-    my $all_advantage_buffer = $omp_env->get_adv_buffer;
-    my $all_return_buffer = $omp_env->get_ret_buffer;
-    my $all_logprobability_buffer = $omp_env->get_logp_buffer;
+    #my $all_observation_buffer = $omp_env->get_obs_buffer;
+    #my $all_action_buffer = $omp_env->get_act_buffer;
+    #my $all_advantage_buffer = $omp_env->get_adv_buffer;
+    #my $all_return_buffer = $omp_env->get_ret_buffer;
+    #my $all_logprobability_buffer = $omp_env->get_logp_buffer;
+    my $all_observation_buffer = mx->nd->concat(@observation_buffers, dim => 0);
+    my $all_action_buffer = mx->nd->concat(@action_buffers, dim => 0);
+    my $all_advantage_buffer = mx->nd->concat(@advantage_buffers, dim => 0);
+    my $all_return_buffer = mx->nd->concat(@return_buffers, dim => 0);
+    my $all_logprobability_buffer = mx->nd->concat(@logprobability_buffers, dim => 0);
     my $batch_size = $all_logprobability_buffer->shape->[0];
+    print "batch_size: $batch_size\n";
+    $total_num_samples += $batch_size;
     $num_train_itrs = int($batch_size / $mini_batch_size);
 
     my $loss_sum = 0;
@@ -609,11 +659,11 @@ POLICY_LOOP:
     my $env = $envs[0];
     $env->reset;
     my $observation = mx->nd->array([[$env->get_state_list]]);
-    $observation = $state_normalizer->normalize($observation, 0);
+    #$observation = $state_normalizer->normalize($observation, 0);
     until ($env->get_done || $test_length >= $steps_per_itr) {
         my ($mu, $sigma) = $actor_net->($observation);
         my $action = $mu;   # deterministic
-        $action = $action->clip(-1, 1);
+        #$action = $action->clip(-1, 1);
         $env->set_action_list(($action * $a_scale)->aspdl->list);
         $env->step;
         my $reward = $env->get_reward;
@@ -621,13 +671,16 @@ POLICY_LOOP:
         $acc_gamma *= $gamma;
         ++$test_length;
         $observation = mx->nd->array([[$env->get_state_list]]);
-        $observation = $state_normalizer->normalize($observation, 0);
+        #$observation = $state_normalizer->normalize($observation, 0);
     }
 
-    $num_episodes = 1;
-    print "Itr: $itr. Sigma: $g_sigma. Mean Return: ", $avg_ret, ". Test Return: $test_return. Test Length: $test_length. Policy Loss: ", $policy_loss->aspdl->sclr, ". Value Loss: ", $value_loss->aspdl->sclr, ". Time: $sim_time, $train_time\n";
+    print "$max_return $max_length\n";
+    print "$sum_return $num_episodes\n";
+    #print "Itr: $itr. Sigma: $g_sigma. Mean Return: $avg_ret. Max Return: $max_ret. Test Return: $test_return. Test Length: $test_length. Policy Loss: ", $policy_loss->aspdl->sclr, ". Value Loss: ", $value_loss->aspdl->sclr, ". Time: $sim_time, $train_time\n";
+    print "Itr: $itr. Sigma: $g_sigma. Mean Return: ", $sum_return / $num_episodes, ". Mean Length: ", $sum_length / $num_episodes, ". Test Return: $test_return. Test Length: $test_length. Policy Loss: ", $policy_loss->aspdl->sclr, ". Value Loss: ", $value_loss->aspdl->sclr, ". Time: $sim_time, $train_time\n";
     print $actor_net->logstd->data->aspdl, "\n";
-    print $f_ret $sum_return / $num_episodes, " ", $sum_length / $num_episodes, " $test_return $test_length\n";
+    #print $f_ret $avg_ret, " ", $max_ret, " $test_return $test_length\n";
+    print $f_ret $sum_return / $num_episodes, " ", $sum_length / $num_episodes, " $test_return $test_length $total_num_samples\n";
 
     if ($itr % $save_interval == 0) {
         $actor_net->save_parameters(sprintf("$save_model/actor-%06d.par", $itr));

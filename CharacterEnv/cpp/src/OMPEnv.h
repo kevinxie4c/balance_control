@@ -24,8 +24,11 @@ class OMPEnv
         Eigen::MatrixXd velocities;
         Eigen::MatrixXd means, stds;
         Eigen::MatrixXd observations;
+        Eigen::MatrixXd actions;
+        Eigen::MatrixXd logps;
         Eigen::MatrixXd values;
-        size_t numSample = 2000, numSave = 400;
+        size_t numSample = 40, numSave = 40;
+        //size_t numSample = 1, numSave = 1;
         size_t numObs; // Why need this?
         std::vector<std::vector<std::shared_ptr<Sample>>> savedSamples;
         std::vector<StdNormalDistVec> samplers;
@@ -35,6 +38,10 @@ class OMPEnv
         double gamma = 0.99;
         double lam = 0.97;
         double avg_ret = 0;
+        double max_ret = 0;
+        int max_len = 0;
+
+        int buffer_size = 0;
 };
 
 #endif

@@ -405,6 +405,18 @@ CODE:
     THIS->values = m->cast<double>();
 
 
+void
+OMPEnv::set_actions_matrix(Eigen::MatrixXf* m)
+CODE:
+    THIS->actions = m->cast<double>();
+
+
+void
+OMPEnv::set_logps_matrix(Eigen::MatrixXf* m)
+CODE:
+    THIS->logps = m->cast<double>();
+
+
 Eigen::MatrixXf *
 OMPEnv::get_observations_matrix()
 CODE:
@@ -467,5 +479,29 @@ double
 OMPEnv::get_avg_ret()
 CODE:
     RETVAL = THIS->avg_ret;
+OUTPUT:
+    RETVAL
+
+
+double
+OMPEnv::get_max_ret()
+CODE:
+    RETVAL = THIS->max_ret;
+OUTPUT:
+    RETVAL
+
+
+int
+OMPEnv::get_max_len()
+CODE:
+    RETVAL = THIS->max_len;
+OUTPUT:
+    RETVAL
+    
+
+int
+OMPEnv::get_buffer_size()
+CODE:
+    RETVAL = THIS->buffer_size;
 OUTPUT:
     RETVAL
