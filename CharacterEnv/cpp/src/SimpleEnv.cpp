@@ -83,7 +83,7 @@ void SimpleEnv::reset()
 void SimpleEnv::step()
 {
     prev_com = skeleton->getRootBodyNode()->getCOM();
-    VectorXd force = action.array() * scales.array();
+    VectorXd force = (action.array().min(1).max(-1) * scales.array()).matrix();
     force.head(3).setZero();
     //force.setZero();
     //cout << force.transpose() << endl;

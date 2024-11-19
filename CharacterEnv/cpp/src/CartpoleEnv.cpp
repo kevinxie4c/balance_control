@@ -47,7 +47,7 @@ void CartpoleEnv::step()
 {
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
-        VectorXd force = (action.array() * scales.array()).matrix();
+        VectorXd force = (action.array().min(1).max(-1) * scales.array()).matrix();
         skeleton->setForces(force);
         world->step();
     }
@@ -60,5 +60,5 @@ void CartpoleEnv::updateState()
     VectorXd dq = skeleton->getVelocities();
     state << q, dq;
     done = abs(q[0]) > 2.4 || abs(q[1]) > 0.20944;
-    reward = done ? 0 : exp(-abs(q[0]));
+    reward = done ? 0 : exp(-abs(q[0])) + exp(-dq.norm());
 }
