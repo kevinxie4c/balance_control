@@ -94,7 +94,8 @@ sub get_act_buffer {
 sub get_adv_buffer {
     my $self = shift;
     my $m = $self->get_adv_buffer_matrix;
-    my $a = mx->nd->empty([$m->cols, $m->rows]);
+    #my $a = mx->nd->empty([$m->cols, $m->rows]);
+    my $a = mx->nd->empty([$m->rows]);
     CharacterEnv::_matrix2mxar($m, $a);
     return $a;
 }
@@ -102,7 +103,8 @@ sub get_adv_buffer {
 sub get_ret_buffer {
     my $self = shift;
     my $m = $self->get_ret_buffer_matrix;
-    my $a = mx->nd->empty([$m->cols, $m->rows]);
+    #my $a = mx->nd->empty([$m->cols, $m->rows]);
+    my $a = mx->nd->empty([$m->rows]);
     CharacterEnv::_matrix2mxar($m, $a);
     return $a;
 }
@@ -110,7 +112,8 @@ sub get_ret_buffer {
 sub get_logp_buffer {
     my $self = shift;
     my $m = $self->get_logp_buffer_matrix;
-    my $a = mx->nd->empty([$m->cols, $m->rows]);
+    #my $a = mx->nd->empty([$m->cols, $m->rows]);
+    my $a = mx->nd->empty([$m->rows]);
     CharacterEnv::_matrix2mxar($m, $a);
     return $a;
 }
@@ -137,6 +140,23 @@ sub set_values {
     my $m = Eigen::MatrixXf->new($a->shape->[1], $a->shape->[0]);
     CharacterEnv::_mxar2matrix($a, $m);
     $self->set_values_matrix($m);
+}
+
+sub set_actions {
+    my $self = shift;
+    my $a = shift;
+    my $m = Eigen::MatrixXf->new($a->shape->[1], $a->shape->[0]);
+    CharacterEnv::_mxar2matrix($a, $m);
+    $self->set_actions_matrix($m);
+}
+
+sub set_logps {
+    my $self = shift;
+    my $a = shift;
+    #my $m = Eigen::MatrixXf->new($a->shape->[1], $a->shape->[0]);
+    my $m = Eigen::MatrixXf->new(1, $a->shape->[0]);
+    CharacterEnv::_mxar2matrix($a, $m);
+    $self->set_logps_matrix($m);
 }
 
 1;
