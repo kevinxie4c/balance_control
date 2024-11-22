@@ -1,6 +1,7 @@
 #include <iostream>
 #include <pthread.h>
 #include <queue>
+#include <algorithm>
 #include "OMPEnv.h"
 #include "StdNormalDistVec.h"
 
@@ -36,6 +37,8 @@ void OMPEnv::reset()
 }
 
 
+/*
+// use queue
 void OMPEnv::step()
 {
     priority_queue<shared_ptr<Sample>, vector<shared_ptr<Sample>>, RewardCmp> queue;
@@ -94,6 +97,69 @@ void OMPEnv::step()
         savedSamples.pop_back();
     }
     buffer_size += numObs;
+}
+*/
+
+// use sort
+void OMPEnv::step()
+{
+    for (int i = 0; i < savedSamples.back().size(); ++i)
+        savedSamples.back()[i]->value = values(0, i);
+    if (savedSamples.back().size() > numSave)
+    {
+        sort(savedSamples.back().begin(), savedSamples.back().end(), [](const shared_ptr<Sample>  &lhs, const shared_ptr<Sample> &rhs)
+                {
+                    //return lhs->value > rhs->value;
+                    //return lhs->reward > rhs->reward;
+                    return lhs->accReward > rhs->accReward;
+                });
+        savedSamples.back().resize(numSave);
+        //cout << "sort" << endl;
+    }
+    vector<shared_ptr<Sample>> nextSamples;
+#pragma omp for
+    for (int i = 0; i < savedSamples.back().size(); ++i)
+    {
+        size_t id = i % num_threads;
+        shared_ptr<Sample> sample = savedSamples.back()[i];
+        sample->value = values(0, i);
+
+        for (size_t j = 0; j < numSample / savedSamples.back().size(); ++j)
+        {
+            envs[id]->skeleton->setPositions(sample->position);
+            envs[id]->skeleton->setVelocities(sample->velocity);
+            
+            VectorXd x = samplers[id]();
+            double logprob = StdNormalDistVec::logProbability(x);
+            envs[id]->action = means.col(i) + (stds.col(i).array() * x.array()).matrix();
+            //double logprob = logps(0, i);
+            //envs[id]->action = actions.col(i);
+            //cout << "a " << envs[id]->action.transpose() << endl;
+
+            envs[id]->step();
+#pragma omp critical (queue_section)
+            {
+                shared_ptr<Sample> s = make_shared<Sample>(sample, logprob, envs[id]);
+                if (s->done == false)
+                    nextSamples.push_back(s);
+            }
+        }
+    }
+
+    savedSamples.push_back(nextSamples);
+    numObs = savedSamples.back().size();
+    //cout << "numObs: " << numObs << endl;
+    observations = MatrixXd(envs[0]->state.size(), numObs);
+    if (numObs > 0)
+    {
+        for (size_t i = 0; i < numObs; ++i)
+            observations.col(i) = savedSamples.back()[i]->observation;
+    }
+    else
+    {
+        savedSamples.pop_back();
+    }
+    buffer_size += numObs > numSave ? numSave : numObs;
 }
 
 void OMPEnv::trace_back()

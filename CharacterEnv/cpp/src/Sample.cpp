@@ -10,6 +10,10 @@ Sample::Sample(std::shared_ptr<Sample> parent, double logprob, CharacterEnv *env
     reward = env->reward;
     retval = std::numeric_limits<double>::min();
     done = env->done;
+    if (parent == nullptr)
+        accReward = reward;
+    else
+        accReward = parent->reward + reward;
 }
 
 bool RewardCmp::operator()(const std::shared_ptr<Sample> &lhs, const std::shared_ptr<Sample> &rhs)

@@ -21,6 +21,7 @@ class Sample
         double value; // value based on the critic
         double delta;
         double advantage;
+        double accReward;
 
         std::shared_ptr<Sample> parent = nullptr;
         std::shared_ptr<Sample> firstChild = nullptr;
