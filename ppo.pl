@@ -746,7 +746,7 @@ POLICY_LOOP:
 
     print "Itr: $itr. Sigma: $g_sigma. Mean Return: ", $sum_return / $num_episodes, ". Mean Length: ", $sum_length / $num_episodes, ". Test Return: $test_return. Test Length: $test_length. Policy Loss: ", $policy_loss->aspdl->sclr, ". Value Loss: ", $value_loss->aspdl->sclr, ". Decay_frac: $decay_frac. Time: $sim_time, $train_time\n";
     print $actor_net->logstd->data->aspdl, "\n";
-    print $f_ret $sum_return / $num_episodes, " ", $sum_length / $num_episodes, " $test_return $test_length $total_num_samples\n";
+    print $f_ret $total_num_samples, " ", $sum_return / $num_episodes, " ", $sum_length / $num_episodes, " $test_return $test_length\n";
 
     if ($itr % $save_interval == 0) {
         $actor_net->save_parameters(sprintf("$save_model/actor-%06d.par", $itr));
