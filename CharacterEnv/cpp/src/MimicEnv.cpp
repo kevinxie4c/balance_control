@@ -112,7 +112,7 @@ void MimicEnv::step()
         frameIdx -= positions.size();
 
     const VectorXd &target = positions[frameIdx];
-    VectorXd ref = target + (action.array() * scales.array()).matrix();
+    VectorXd ref = target + (action.array().min(1).max(-1) * scales.array()).matrix();
 
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
