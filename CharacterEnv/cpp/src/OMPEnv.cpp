@@ -216,12 +216,25 @@ void OMPEnv::trace_back()
     avg_ret = 0;
     max_ret = numeric_limits<double>::min();
     max_len = savedSamples.size() - 1;
+    shared_ptr<Sample> best = nullptr;
     for (shared_ptr<Sample> &s: savedSamples[0])
     {
         avg_ret += s->retval;
         if (s->retval > max_ret)
+        {
             max_ret = s->retval;
+            best = s;
+        }
     }
+    std::vector<Eigen::VectorXd> bestTraj;
+    while (best != nullptr)
+    {
+        bestTraj.push_back(best->position);
+        best = best->firstChild;
+    }
+    best_traj = Eigen::MatrixXd(bestTraj[0].size(), bestTraj.size());
+    for (int i = 0; i < bestTraj.size(); ++i)
+        best_traj.col(i) = bestTraj[i];
     avg_ret /= savedSamples[0].size();
 }
 

@@ -505,3 +505,12 @@ CODE:
     RETVAL = THIS->buffer_size;
 OUTPUT:
     RETVAL
+
+
+Eigen::MatrixXf *
+OMPEnv::get_best_traj_matrix()
+CODE:
+    Eigen::MatrixXf *m = new Eigen::MatrixXf(THIS->best_traj.cast<float>());
+    RETVAL = m;
+OUTPUT:
+    RETVAL

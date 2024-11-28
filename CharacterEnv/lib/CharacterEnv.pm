@@ -118,6 +118,14 @@ sub get_logp_buffer {
     return $a;
 }
 
+sub get_best_traj {
+    my $self = shift;
+    my $m = $self->get_best_traj_matrix;
+    my $a = mx->nd->empty([$m->cols, $m->rows]);
+    CharacterEnv::_matrix2mxar($m, $a);
+    return $a;
+}
+
 sub set_means {
     my $self = shift;
     my $a = shift;

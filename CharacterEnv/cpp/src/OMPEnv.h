@@ -27,13 +27,14 @@ class OMPEnv
         Eigen::MatrixXd actions;
         Eigen::MatrixXd logps;
         Eigen::MatrixXd values;
-        size_t numSample = 40, numSave = 40;
+        size_t numSample = 400, numSave = 400;
         //size_t numSample = 1, numSave = 1;
         size_t numObs; // Why need this?
         std::vector<std::vector<std::shared_ptr<Sample>>> savedSamples;
         std::vector<StdNormalDistVec> samplers;
 
         Eigen::MatrixXd obs_buffer, act_buffer, adv_buffer, ret_buffer, logp_buffer;
+        Eigen::MatrixXd best_traj;
 
         double gamma = 0.99;
         double lam = 0.97;
