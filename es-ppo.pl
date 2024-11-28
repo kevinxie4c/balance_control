@@ -476,7 +476,7 @@ if ($play_policy) {
     #exit;
     my ($pos, $i);
     if (defined($traj_file)) {
-        my $h = mx->nd->load("t/traj-000001.nd");
+        my $h = mx->nd->load($traj_file);
         $pos = $h->{pos};
         $i = 0;
     }
