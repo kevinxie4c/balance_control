@@ -111,7 +111,8 @@ void OMPEnv::step()
                 {
                     //return lhs->value > rhs->value;
                     //return lhs->reward > rhs->reward;
-                    return lhs->accReward > rhs->accReward;
+                    //return lhs->accReward > rhs->accReward;
+                    return lhs->accReward + lhs->value > rhs->accReward + rhs->value;
                 });
         savedSamples.back().resize(numSave);
         //cout << "sort" << endl;
