@@ -9,6 +9,7 @@ class SimpleEnv: public CharacterEnv
 {
     public:
         SimpleEnv(const char *cfgFilename);
+        ~SimpleEnv();
         void reset() override;
         void step() override;
         void updateState();
@@ -19,6 +20,9 @@ class SimpleEnv: public CharacterEnv
         dart::dynamics::SkeletonPtr floor;
         Eigen::VectorXd scales;
         Eigen::Vector3d prev_com;
+
+        std::vector<Eigen::VectorXd> refMotion;
+        int frameRate;
 };
 
 #endif
