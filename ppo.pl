@@ -302,7 +302,7 @@ package RunningMeanStd {
         my ($self, $x) = @_;
         ++$self->{n};
         my $m = $self->{mean}->copy;
-        $self->{mean} =  $m + ($x - $m) / $self->{n};
+        $self->{mean} = $m + ($x - $m) / $self->{n};
         $self->{nvar} = $self->{nvar} + ($x - $m) * ($x - $self->{mean});
         $self->{std} = sqrt($self->{nvar} / $self->{n});
     }

@@ -407,12 +407,12 @@ my $actor_net = ActorModel->new(sizes => $actor_layers,  activation => 'relu');
 my $critic_net = mlp($critic_layers, 'relu');
 #print $critic_net;
 if (defined($load_model)) {
-    die "Canno find the model files!" unless -d $load_model and -f "$load_model/actor.par" and -f "$load_model/critic.par";
+    die "Cannot find the model files!" unless -d $load_model and -f "$load_model/actor.par" and -f "$load_model/critic.par";
     print "load actor from $load_model/actor.par\n";
     $actor_net->load_parameters("$load_model/actor.par");
     print "load critic from $load_model/critic.par\n";
     $critic_net->load_parameters("$load_model/critic.par");
-    if (!$reinit_logstd) {
+    if ($reinit_logstd) {
         $actor_net->logstd->initialize(init => mx->init->Zero, force_reinit => 1);
     }
 } else {
@@ -502,7 +502,7 @@ if ($play_policy) {
     $env->reset;
     #$env->set_positions(mx->nd->array([0.5, 0]));
     until ($env->viewer_done) {
-        if ($env->is_playing) {
+        if ($env->is_playing || $env->req_step) {
             if (defined($pos)) {
                 if ($i >= $pos->shape->[0]) {
                     $i = 0;
