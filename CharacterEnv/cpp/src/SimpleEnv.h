@@ -23,6 +23,10 @@ class SimpleEnv: public CharacterEnv
 
         std::vector<Eigen::VectorXd> refMotion;
         int frameRate;
+        Eigen::VectorXd kp, kd;
+        Eigen::MatrixXd mkp, mkd;
+        double period, phase;
+        int frameIdx;
 };
 
 #endif

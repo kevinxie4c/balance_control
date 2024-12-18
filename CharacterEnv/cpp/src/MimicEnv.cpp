@@ -120,10 +120,10 @@ void MimicEnv::step()
         VectorXd q = skeleton->getPositions();
         VectorXd dq = skeleton->getVelocities();
         MatrixXd invM = (skeleton->getMassMatrix() + mkd * skeleton->getTimeStep()).inverse();
-        VectorXd p = -mkp * skeleton->getPositionDifferences(q + dq * skeleton->getTimeStep(), ref);
-        VectorXd d = -mkd * dq;
+        VectorXd p = -kp.array() * skeleton->getPositionDifferences(q + dq * skeleton->getTimeStep(), ref).array();
+        VectorXd d = -kd.array() * dq.array();
         VectorXd qddot = invM * (-skeleton->getCoriolisAndGravityForces() + p + d + skeleton->getConstraintForces());
-        VectorXd force = p + d - mkd * qddot * world->getTimeStep();
+        VectorXd force = p + d - (kd.array() * qddot.array()).matrix() * world->getTimeStep();
 
         // PD
         /*

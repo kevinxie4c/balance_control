@@ -54,7 +54,7 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
     scales = readVectorXdFrom(json["scales"]);
     //state = VectorXd(skeleton->getNumDofs() * 2);
     state = VectorXd(skeleton->getNumDofs() * 2 + 3);
-    action = VectorXd(skeleton->getNumDofs());
+    action = VectorXd(skeleton->getNumDofs() - 3);
 
     skeleton->setPositionLowerLimits(readVectorXdFrom(json["lower_limits"]));
     skeleton->setPositionUpperLimits(readVectorXdFrom(json["upper_limits"]));
@@ -71,6 +71,15 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
 
     refMotion = readVectorXdListFrom(json["ref_motion"]);
     frameRate = json["frame_rate"].get<int>();
+    kp = Eigen::VectorXd(skeleton->getNumDofs());
+    kp << 0, 0, 0, readVectorXdFrom(json["kp"]);
+    kd = Eigen::VectorXd(skeleton->getNumDofs());
+    kd << 0, 0, 0, readVectorXdFrom(json["kd"]);
+    mkp = MatrixXd::Zero(kp.size(), kp.size());
+    mkd = MatrixXd::Zero(kd.size(), kd.size());
+    mkp.diagonal() = kp;
+    mkd.diagonal() = kd;
+    period = (double)refMotion.size() / frameRate;
 
     reset();
 }
@@ -82,22 +91,47 @@ SimpleEnv::~SimpleEnv()
 void SimpleEnv::reset()
 {
     world->reset();
-    VectorXd zeros = VectorXd::Zero(skeleton->getNumDofs());
-    skeleton->setPositions(zeros);
-    skeleton->setVelocities(zeros);
+    VectorXd initPos = VectorXd::Zero(skeleton->getNumDofs());
+    initPos << 0, 0, 0, refMotion[0];
+    skeleton->setPositions(initPos);
+    VectorXd initVel = VectorXd::Zero(skeleton->getNumDofs());
+    initVel[0] = 1.2;
+    skeleton->setVelocities(initVel);
     prev_com = skeleton->getRootBodyNode()->getCOM();
     done = false;
+    double intPart;
+    phase = modf(getTime() / period, &intPart);
+    frameIdx = (size_t)round(phase * refMotion.size());
+    if (frameIdx >= refMotion.size())
+        frameIdx -= refMotion.size();
     updateState();
 }
 
 void SimpleEnv::step()
 {
+    double intPart;
+    phase = modf(getTime() / period, &intPart);
+    frameIdx = (size_t)round(phase * refMotion.size());
+    if (frameIdx >= refMotion.size())
+        frameIdx -= refMotion.size();
+
+    const VectorXd &target = refMotion[frameIdx];
+    VectorXd ref(skeleton->getNumDofs());
+    ref << 0, 0, 0, target + (action.array().min(1).max(-1) * scales.array()).matrix();
+
     prev_com = skeleton->getRootBodyNode()->getCOM();
-    VectorXd force = (action.array().min(1).max(-1) * scales.array()).matrix();
-    force.head(3).setZero();
     done = false;
+
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
+        // stable PD
+        VectorXd q = skeleton->getPositions();
+        VectorXd dq = skeleton->getVelocities();
+        MatrixXd invM = (skeleton->getMassMatrix() + mkd * skeleton->getTimeStep()).inverse();
+        VectorXd p = -kp.array() * skeleton->getPositionDifferences(q + dq * skeleton->getTimeStep(), ref).array();
+        VectorXd d = -kd.array() * dq.array();
+        VectorXd qddot = invM * (-skeleton->getCoriolisAndGravityForces() + p + d + skeleton->getConstraintForces());
+        VectorXd force = p + d - (kd.array() * qddot.array()).matrix() * world->getTimeStep();
         skeleton->setForces(force);
         world->step();
     }
@@ -125,7 +159,7 @@ void SimpleEnv::updateState()
 
     //double theta = sin(getTime() / 4 * M_PI) * M_PI / 6;
     //r_ref = 10 * (exp(-5 * abs(q[3] - theta)) + exp(-5 * abs(q[6] + theta)));
-    VectorXd ref = refMotion[(size_t)round(getTime() * frameRate) % refMotion.size()];
+    VectorXd ref = refMotion[frameIdx];
     r_ref = 10 * exp(-2 * (q.tail(6) - ref).norm());
 
     r_norm = 0.5 * exp(-0.5 * action.norm());
