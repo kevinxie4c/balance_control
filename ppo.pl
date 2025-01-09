@@ -369,6 +369,7 @@ if (defined($parameters)) {
     $value_function_learning_rate = $para->{value_function_learning_rate} if defined $para->{value_function_learning_rate};
     $actor_layers = $para->{actor_layers} if defined $para->{actor_layers};
     $critic_layers = $para->{critic_layers} if defined $para->{critic_layers};
+    $gamma = $para->{gamma} if defined $para->{gamma};
 }
 
 my $actor_net = ActorModel->new(sizes => $actor_layers,  activation => 'relu');
@@ -509,6 +510,7 @@ if ($play_policy) {
     my $test_return = 0;
     $env->reset;
     #$env->set_positions(mx->nd->array([0.5, 0]));
+    open my $fh_J, '>', "J.txt";
     until ($env->viewer_done) {
         if ($env->is_playing || $env->req_step) {
             #print($env->get_positions->aspdl, "\n");
@@ -520,7 +522,8 @@ if ($play_policy) {
             $env->set_normalizer_mean($state_normalizer->{ms}{mean}->aspdl->list);
             $env->set_normalizer_std($state_normalizer->{ms}{std}->aspdl->list);
             my $J = compute_policy_jacobian($env, $observation);
-            print $J->aspdl, "\n";
+            print $fh_J $J->aspdl->at(0, 0), " ", $J->aspdl->at(1, 0), "\n";
+            #print $J->aspdl, "\n";
             set_policy_jacobian($env, $observation);
             my ($mu, $sigma) = $actor_net->($observation);
             my $action = $mu;

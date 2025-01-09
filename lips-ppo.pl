@@ -6,6 +6,8 @@ use AI::MXNet::AutoGrad qw(autograd);
 use Getopt::Long qw(:config no_ignore_case);
 use Time::HiRes qw(time);
 use List::Util qw(shuffle);
+use File::Slurp;
+use JSON;
 use Data::Dumper;
 use strict;
 use warnings;
@@ -27,6 +29,7 @@ my $steps_per_itr = 1024;
 my $num_itrs = 5000;
 my $mini_batch_size = 256;
 my $a_scale = 1;
+my $parameters = undef;
 my $config_file = undef;
 my $alpha = 1e-1;
 my $enable_clipping = 0;
@@ -47,6 +50,7 @@ GetOptions(
     'N|num_itrs=i'         => \$num_itrs,
     'K|steps_per_itr=i'    => \$steps_per_itr,
     'a|a_scale=f'          => \$a_scale,
+    'P|parameters=s'       => \$parameters,
     'h|help'               => \$print_help,
 );
 
@@ -64,6 +68,7 @@ options:
     -N --num_itrs=INT
     -K --steps_per_itr=INT
     -a --a_scale=FLOAT
+    -P --parameters=STRING
     -h --help
 HELP_MSG
 }
@@ -218,15 +223,10 @@ sub mlp {
     $activation = 'tanh' unless defined $activation;
     my $net = nn->Sequential;
     $net->name_scope(sub {
-            my $i = 0;
             for my $size (@$sizes) {
-                if ($i < $#$sizes) {
-                    $net->add(nn->Dense($size, activation => $activation));
-                } else {
-                    $net->add(nn->Dense($size)); # linear activation for the last layer
-                }
-                ++$i;
+                $net->add(nn->Dense($size, activation => $activation));
             }
+            $net->add(nn->Dense(1)); # linear activation for the last layer
         });
     return $net;
 }
@@ -250,9 +250,15 @@ package ActorModel {
                 my $net = nn->Sequential;
                 my $prev_size = $state_size;
                 $net->name_scope(sub {
+                        my $layer_num = 0;
                         for my $size (@$sizes) {
                             $net->add(nn->Dense($size, in_units => $prev_size, activation => $activation));
                             $prev_size = $size;
+
+                            # Lipschitz
+                            my $lip_name = "c$layer_num";
+                            $self->params->get($lip_name, shape => [1]);
+                            $self->$lip_name($self->params->get($lip_name));
                         }
                     });
                 $self->dense_base($net);
@@ -264,11 +270,11 @@ package ActorModel {
                 #$self->logstd(mx->gluon->Parameter('logstd', shape => $action_size)); # only work for python version of mxnet
 
                 # Lipschitz
-                for my $layer_num (0 .. scalar(@$sizes) - 1) {
-                    my $lip_name = "c$layer_num";
-                    $self->params->get($lip_name, shape => [1]);
-                    $self->$lip_name($self->params->get($lip_name));
-                }
+                #for my $layer_num (0 .. scalar(@$sizes) - 1) {
+                #    my $lip_name = "c$layer_num";
+                #    $self->params->get($lip_name, shape => [1]);
+                #    $self->$lip_name($self->params->get($lip_name));
+                #}
 
                 $self->params->get('c_mu', shape => [1]);
                 $self->c_mu($self->params->get('c_mu'));
@@ -276,34 +282,24 @@ package ActorModel {
     }
 
     method forward($x) {
-        my $l1 = $self->dense_base->[0];
-        my $l2 = $self->dense_base->[1];
-        my $mu = $self->dense_mu;
-
-        my $w1 = $l1->weight->data;
-        my $w2 = $l2->weight->data;
-        my $w_mu = $mu->weight->data;
-
-        my $c1 = $self->c0->data;
-        my $c2 = $self->c1->data;
+        my $layer_num = 0;
+        $x = $x->T();
+        for my $layer (@{$self->dense_base}) {
+            my $w = $layer->weight->data;
+            my $b = $layer->bias->data;
+            my $act = $layer->act;
+            my $lip_name = "c$layer_num";
+            my $c = $self->$lip_name->data;
+            my $w_normalized = $self->normalization($w, $self->softplus($c));
+            my $y = mx->nd->broadcast_add(mx->nd->dot($w_normalized, $x), $b->expand_dims(axis => 1));
+            $x = $act->($y);
+        }
+        my $dense_mu = $self->dense_mu;
+        my $w_mu = $dense_mu->weight->data;
+        my $b_mu = $dense_mu->bias->data;
         my $c_mu = $self->c_mu->data;
-
-        my $w1_norm = $self->normalization($w1, $self->softplus($c1));
-        my $w2_norm = $self->normalization($w2, $self->softplus($c2));
-        my $w_mu_norm = $self->normalization($w_mu, $self->softplus($c_mu));
-
-        my $b1 = $l1->bias->data;
-        my $b2 = $l2->bias->data;
-        my $b_mu = $mu->bias->data;
-
-        my $act1 = $l1->act;
-        my $act2 = $l2->act;
-
-        my $y1 = mx->nd->broadcast_add(mx->nd->dot($w1_norm, $x->T()), $b1->reshape([64, 1]));
-        my $o1 = $act1->($y1);
-        my $y2 = mx->nd->broadcast_add(mx->nd->dot($w2_norm, $o1), $b2->reshape([64, 1]));
-        my $o2 = $act2->($y2);
-        my $o_mu = mx->nd->broadcast_add(mx->nd->dot($w_mu_norm, $o2), $b_mu->reshape([$action_size, 1]))->T();
+        my $w_mu_normalized = $self->normalization($w_mu, $self->softplus($c_mu));
+        my $o_mu = mx->nd->broadcast_add(mx->nd->dot($w_mu_normalized, $x), $b_mu->expand_dims(axis => 1))->T();
         my $sigma = exp(mx->nd->ones($o_mu->shape) * $self->logstd->data);
         return ($o_mu, $sigma);
     }
@@ -425,9 +421,22 @@ my $policy_learning_rate = 1e-3;
 my $value_function_learning_rate = 1e-2;
 #my $policy_learning_rate = 1e-4;
 #my $value_function_learning_rate = 1e-3;
-my $actor_net = ActorModel->new(sizes => [64, 64],  activation => 'relu');
+my $actor_layers = [64, 64];
+my $critic_layers = [64, 64];
+
+if (defined($parameters)) {
+    die "Cannot find the parameter file!" unless -f $parameters;
+    my $para = decode_json(read_file($parameters));
+    $policy_learning_rate = $para->{policy_learning_rate} if defined $para->{policy_learning_rate};
+    $value_function_learning_rate = $para->{value_function_learning_rate} if defined $para->{value_function_learning_rate};
+    $actor_layers = $para->{actor_layers} if defined $para->{actor_layers};
+    $critic_layers = $para->{critic_layers} if defined $para->{critic_layers};
+    $gamma = $para->{gamma} if defined $para->{gamma};
+}
+
+my $actor_net = ActorModel->new(sizes => $actor_layers,  activation => 'relu');
 #print $actor_net;
-my $critic_net = mlp([64, 64, 1], 'relu');
+my $critic_net = mlp($critic_layers, 'relu');
 #print $critic_net;
 if (defined($load_model)) {
     die "Canno find the model files!" unless -d $load_model and -f "$load_model/actor.par" and -f "$load_model/critic.par";
@@ -461,8 +470,10 @@ unless ($play_policy) {
     my $lip_initializer_mu = AI::MXNet::Constant->new(value => $initial_lip_mu);
     $actor_net->c_mu->initialize(init => $lip_initializer_mu);
 }
-print("c0: ", $actor_net->c0->data->aspdl, "\n");
-print("c1: ", $actor_net->c1->data->aspdl, "\n");
+for my $layer_num(0 .. scalar(@{$actor_net->dense_base}) - 1) {
+    my $lip_name = "c$layer_num";
+    print("$lip_name ", $actor_net->$lip_name->data->aspdl, "\n");
+}
 print("c_mu: ", $actor_net->c_mu->data->aspdl, "\n");
 
 my $state_normalizer = Normalizer->new([1, $state_size]);
@@ -582,6 +593,7 @@ if ($play_policy) {
     my $test_return = 0;
     $env->reset;
     #$env->set_positions(mx->nd->array([0.5, 0]));
+    open my $fh_J, '>', "J.txt";
     until ($env->viewer_done) {
         if ($env->is_playing || $env->req_step) {
             #print($env->get_positions->aspdl, "\n");
@@ -593,7 +605,8 @@ if ($play_policy) {
             $env->set_normalizer_mean($state_normalizer->{ms}{mean}->aspdl->list);
             $env->set_normalizer_std($state_normalizer->{ms}{std}->aspdl->list);
             my $J = compute_policy_jacobian($env, $observation);
-            print $J->aspdl, "\n";
+            #print $J->aspdl, "\n";
+            print $fh_J $J->aspdl->at(0, 0), " ", $J->aspdl->at(1, 0), "\n";
             set_policy_jacobian($env, $observation);
             my ($mu, $sigma) = $actor_net->($observation);
             my $action = $mu;
