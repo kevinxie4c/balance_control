@@ -27,7 +27,7 @@ class OMPEnv
         Eigen::MatrixXd actions;
         Eigen::MatrixXd logps;
         Eigen::MatrixXd values;
-        size_t numSample = 400, numSave = 400;
+        size_t numSample = 200, numSave = 80;
         //size_t numSample = 1, numSave = 1;
         size_t numObs; // Why need this?
         std::vector<std::vector<std::shared_ptr<Sample>>> savedSamples;

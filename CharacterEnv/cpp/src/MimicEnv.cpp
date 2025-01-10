@@ -3,6 +3,7 @@
 #include <random>
 #include <Eigen/Core>
 #include <nlohmann/json.hpp>
+#include <dart/collision/bullet/BulletCollisionDetector.hpp>
 #include "SimCharacter.h"
 #include "MimicEnv.h"
 #include "MathUtil.h"
@@ -29,12 +30,13 @@ MimicEnv::MimicEnv(const char *cfgFilename)
     world = dart::simulation::World::create();
     world->addSkeleton(skeleton);
     world->setTimeStep(1.0 / forceRate);
-    world->getConstraintSolver()->setCollisionDetector(dart::collision::DARTCollisionDetector::create());
+    //world->getConstraintSolver()->setCollisionDetector(dart::collision::DARTCollisionDetector::create());
+    world->getConstraintSolver()->setCollisionDetector(dart::collision::BulletCollisionDetector::create());
     state = VectorXd(skeleton->getNumBodyNodes() * 12 + 1);
     size_t j = 0;
     for (size_t i = 0; i < skeleton->getNumBodyNodes(); ++i)
     {
-        const BodyNode *bn = skeleton->getBodyNode(i);
+        BodyNode *bn = skeleton->getBodyNode(i);
         for (const string &s: endEffectorNames)
         {
             if (bn->getName().rfind(s) != string::npos)
@@ -42,6 +44,11 @@ MimicEnv::MimicEnv(const char *cfgFilename)
                 endEffectorIndices[j++] = i;
                 break;
             }
+        }
+        for (ShapeNode *sn: bn->getShapeNodes())
+        {
+            sn->getDynamicsAspect()->setFrictionCoeff(json["friction_coeff"].get<double>());
+            sn->getDynamicsAspect()->setRestitutionCoeff(json["restitution_coeff"].get<double>());
         }
     }
     positions = readVectorXdListFrom(json["poses"]);

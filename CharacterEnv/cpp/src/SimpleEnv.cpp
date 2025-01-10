@@ -32,6 +32,16 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
     //((dart::constraint::BoxedLcpConstraintSolver*)world->getConstraintSolver())->setBoxedLcpSolver(std::unique_ptr<dart::constraint::BoxedLcpSolver>(new dart::constraint::DantzigBoxedLcpSolver()));
     ((dart::constraint::BoxedLcpConstraintSolver*)world->getConstraintSolver())->setBoxedLcpSolver(std::unique_ptr<dart::constraint::BoxedLcpSolver>(new dart::constraint::PgsBoxedLcpSolver()));
 
+    for (size_t i = 0; i < skeleton->getNumBodyNodes(); ++i)
+    {
+        BodyNode *bn = skeleton->getBodyNode(i);
+        for (ShapeNode *sn: bn->getShapeNodes())
+        {
+            sn->getDynamicsAspect()->setFrictionCoeff(json["friction_coeff"].get<double>());
+            sn->getDynamicsAspect()->setRestitutionCoeff(json["restitution_coeff"].get<double>());
+        }
+    }
+
     floor = Skeleton::create("floor");
     BodyNodePtr body = floor->createJointAndBodyNodePair<WeldJoint>(nullptr).second;
     // Deprecated
