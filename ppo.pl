@@ -474,7 +474,7 @@ if ($play_policy) {
             #print($env->get_positions->aspdl, "\n");
             #print(join(' ', $env->get_positions_list), "\n");
             my $observation = mx->nd->array([[$env->get_state_list]]);
-            $observation = $state_normalizer->normalize($observation, 0);
+            #$observation = $state_normalizer->normalize($observation, 0);
             print $fout join(' ', $env->get_positions_list), "\n";
             #print "state: ", $observation->aspdl, "\n";
             my ($mu, $sigma) = $actor_net->($observation);
