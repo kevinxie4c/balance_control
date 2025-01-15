@@ -1,5 +1,5 @@
-#ifndef ROD_ENV_H
-#define ROD_ENV_H
+#ifndef BOX_ENV_H
+#define BOX_ENV_H
 
 #include <Eigen/Core>
 #include <dart/dart.hpp>
@@ -7,14 +7,14 @@
 #include <fstream>
 #include "CharacterEnv.h"
 
-class RodEnv: public CharacterEnv
+class BoxEnv: public CharacterEnv
 {
     public:
-        RodEnv(const char *cfgFilename);
+        BoxEnv(const char *cfgFilename);
         void reset() override;
         void step() override;
         void updateState();
-        ~RodEnv();
+        ~BoxEnv();
 
         int actionRate = 100;
         int forceRate = 100;

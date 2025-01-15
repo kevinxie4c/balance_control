@@ -13,6 +13,7 @@
 #include "QuadEnv.h"
 #include "AntEnv.h"
 #include "RodEnv.h"
+#include "BoxEnv.h"
 #include "CustomEventHandler.h"
 
 using namespace std;
@@ -43,6 +44,8 @@ CharacterEnv* CharacterEnv::makeEnv(const char *cfgFilename)
         env = new AntEnv(cfgFilename);
     else if (json["env"] == "rod")
         env = new RodEnv(cfgFilename);
+    else if (json["env"] == "box")
+        env = new BoxEnv(cfgFilename);
     else
         throw runtime_error(string("unknown env: ") + json["env"].get<string>());
 

@@ -2,7 +2,7 @@
 #include <fstream>
 #include <chrono>
 #include "SimCharacter.h"
-#include "RodEnv.h"
+#include "BoxEnv.h"
 #include "IOUtil.h"
 
 #define SIM_MODE 2
@@ -11,7 +11,7 @@ using namespace std;
 using namespace Eigen;
 using namespace dart::dynamics;
 
-RodEnv::RodEnv(const char *cfgFilename)
+BoxEnv::BoxEnv(const char *cfgFilename)
 {
     ifstream input(cfgFilename);
     if (input.fail())
@@ -35,14 +35,14 @@ RodEnv::RodEnv(const char *cfgFilename)
     action = VectorXd(skeleton->getNumDofs());
 
     generator = std::default_random_engine(std::chrono::system_clock::now().time_since_epoch().count());
-    distribution = std::uniform_real_distribution<double>(-40.0, 40.0);
+    distribution = std::uniform_real_distribution<double>(-10.0, 10.0);
 
     //fh_pos.open("pos.txt");
     //cout << "fh_pos.open" << endl;
     reset();
 }
 
-void RodEnv::reset()
+void BoxEnv::reset()
 {
     world->reset();
     VectorXd zeros = VectorXd::Zero(skeleton->getNumDofs());
@@ -51,13 +51,12 @@ void RodEnv::reset()
     updateState();
 }
 
-void RodEnv::step()
+void BoxEnv::step()
 {
     VectorXd force = (action.array() * scales.array()).matrix();
     double h = 1.0 / actionRate;
     Vector3d extFrc = Vector3d::Zero();
     Vector3d offset = Vector3d::Zero();
-    offset[1] = 0.5;
     double rem = fmod(world->getTime(), 2.0);
     if (rem >= 1.0 && rem < 1.2)
         extFrc[0] = distribution(generator);
@@ -69,23 +68,23 @@ void RodEnv::step()
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
         //fh_pos << skeleton->getPositions().transpose() << endl;
-        skeleton->getBodyNode(1)->addExtForce(extFrc, offset);
+        skeleton->getBodyNode(0)->addExtForce(extFrc, offset);
         skeleton->setForces(force);
         world->step();
     }
     updateState();
 }
 
-void RodEnv::updateState()
+void BoxEnv::updateState()
 {
     VectorXd q = skeleton->getPositions();
     VectorXd dq = skeleton->getVelocities();
     state << q, dq;
-    done = abs(q[0]) > 0.523599;
+    done = abs(q[0]) > 2;
     reward = done ? 0 : exp(-abs(q[0]));
 }
 
-RodEnv::~RodEnv()
+BoxEnv::~BoxEnv()
 {
     //fh_pos.close();
     //cout << "fh_pos.close" << endl;
