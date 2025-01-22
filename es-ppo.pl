@@ -686,9 +686,9 @@ POLICY_LOOP:
             }
             $loss_sum += $policy_loss;
             ++$itrs_sum;
-            #if ($kl->aspdl->sclr > 1.5 * $target_kl) {
-            #    last POLICY_LOOP;
-            #}
+            if ($kl->aspdl->sclr > 1.5 * $target_kl) {
+                last POLICY_LOOP;
+            }
         }
     }
     $policy_loss = $loss_sum / $itrs_sum;

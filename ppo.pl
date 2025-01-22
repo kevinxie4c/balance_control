@@ -360,6 +360,7 @@ my $policy_learning_rate = 1e-3;
 my $value_function_learning_rate = 1e-2;
 my $actor_layers = [64, 64];
 my $critic_layers = [64, 64];
+my $state_normalization = 1;
 
 if (defined($parameters)) {
     die "Cannot find the parameter file!" unless -f $parameters;
@@ -368,6 +369,7 @@ if (defined($parameters)) {
     $value_function_learning_rate = $para->{value_function_learning_rate} if defined $para->{value_function_learning_rate};
     $actor_layers = $para->{actor_layers} if defined $para->{actor_layers};
     $critic_layers = $para->{critic_layers} if defined $para->{critic_layers};
+    $state_normalization = $para->{state_normalization} if defined $para->{state_normalization};
 }
 
 my $actor_net = ActorModel->new(sizes => $actor_layers,  activation => 'relu');
@@ -391,9 +393,12 @@ if (defined($load_model)) {
     $critic_net->initialize(mx->init->Xavier());
 }
 
-my $state_normalizer = Normalizer->new([1, $state_size]);
-if (defined($load_model)) {
-    $state_normalizer->load;
+my $state_normalizer = undef;
+if ($state_normalization) {
+    $state_normalizer = Normalizer->new([1, $state_size]);
+    if (defined($load_model)) {
+        $state_normalizer->load;
+    }
 }
 
 my $policy_optimizer = gluon->Trainer(
@@ -474,13 +479,15 @@ if ($play_policy) {
             #print($env->get_positions->aspdl, "\n");
             #print(join(' ', $env->get_positions_list), "\n");
             my $observation = mx->nd->array([[$env->get_state_list]]);
-            #$observation = $state_normalizer->normalize($observation, 0);
+            if ($state_normalization) {
+                $observation = $state_normalizer->normalize($observation, 0);
+            }
             print $fout join(' ', $env->get_positions_list), "\n";
             #print "state: ", $observation->aspdl, "\n";
             my ($mu, $sigma) = $actor_net->($observation);
             #my $action = $actor_net->choose_action($observation);
             my $action = $mu;   # deterministic
-            $action = $action->clip(-1, 1);
+            #$action = $action->clip(-1, 1);
             print $f_action join(' ', $action->aspdl->list), "\n";
             #print "action: ", $action->aspdl, "\n";
             #$a_scale = 0;
@@ -515,7 +522,9 @@ for my $itr (1 .. $num_itrs) {
     my ($sum_return, $sum_length, $num_episodes) = (0, 0, 0);
     #my ($episode_return, $episode_length) = (0, 0);
     #my $observation = mx->nd->array([[$env->get_state_list]]);
-    #$observation = $state_normalizer->normalize($observation, 0);
+    #if ($state_normalization) {
+    #    $observation = $state_normalizer->normalize($observation, 0);
+    #}
 
     #for my $t (1 .. $steps_per_itr) {
     #    my ($mu, $sigma) = $actor_net->($observation);
@@ -601,7 +610,9 @@ for my $itr (1 .. $num_itrs) {
             @state_list = (-1) x @state_list;
         }
         $observation[$id] = mx->nd->array([[@state_list]]);
-        #$observation[$id] = $state_normalizer->normalize($observation[$id]);
+        if ($state_normalization) {
+            $observation[$id] = $state_normalizer->normalize($observation[$id]);
+        }
         my ($mu, $sigma) = $actor_net->($observation[$id]);
         $action[$id] = $actor_net->sample($mu, $sigma);
         if ($action[$id]->aspdl =~ /NaN/) {
@@ -609,7 +620,8 @@ for my $itr (1 .. $num_itrs) {
         }
         $logprobability_t[$id] = $actor_net->log_prob($action[$id], $mu, $sigma)->aspdl->at(0, 0);
         #$action[$id] = $action[$id]->clip(-1, 1);
-        $env->set_action_list(($action[$id]->clip(-1, 1) * $a_scale)->aspdl->list);
+        #$env->set_action_list(($action[$id]->clip(-1, 1) * $a_scale)->aspdl->list);
+        $env->set_action_list(($action[$id] * $a_scale)->aspdl->list);
         $para_env->step($id);
         $finished[$id] = 0;
         ++$total_steps;
@@ -638,7 +650,9 @@ for my $itr (1 .. $num_itrs) {
 
             my @state_list = $env->get_state_list; # get last observation for last_value
             $observation[$id] = mx->nd->array([[@state_list]]);
-            #$observation[$id] = $state_normalizer->normalize($observation[$id]);
+            if ($state_normalization) {
+                $observation[$id] = $state_normalizer->normalize($observation[$id]);
+            }
             my $last_value = $critic_net->($observation[$id])->aspdl->at(0, 0);
             $buffers[$id]->finish_trajectory($last_value);
             $num_episodes += 1;
@@ -729,11 +743,13 @@ POLICY_LOOP:
     my $env = $envs[0];
     $env->reset;
     my $observation = mx->nd->array([[$env->get_state_list]]);
-    #$observation = $state_normalizer->normalize($observation, 0);
+    if ($state_normalization) {
+        $observation = $state_normalizer->normalize($observation, 0);
+    }
     until ($env->get_done || $test_length >= $steps_per_itr) {
         my ($mu, $sigma) = $actor_net->($observation);
         my $action = $mu;   # deterministic
-        $action = $action->clip(-1, 1);
+        #$action = $action->clip(-1, 1);
         $env->set_action_list(($action * $a_scale)->aspdl->list);
         $env->step;
         my $reward = $env->get_reward;
@@ -741,7 +757,9 @@ POLICY_LOOP:
         $acc_gamma *= $gamma;
         ++$test_length;
         $observation = mx->nd->array([[$env->get_state_list]]);
-        #$observation = $state_normalizer->normalize($observation, 0);
+        if ($state_normalization) {
+            $observation = $state_normalizer->normalize($observation, 0);
+        }
     }
 
     print "Itr: $itr. Sigma: $g_sigma. Mean Return: ", $sum_return / $num_episodes, ". Mean Length: ", $sum_length / $num_episodes, ". Test Return: $test_return. Test Length: $test_length. Policy Loss: ", $policy_loss->aspdl->sclr, ". Value Loss: ", $value_loss->aspdl->sclr, ". Decay_frac: $decay_frac. Time: $sim_time, $train_time\n";
@@ -751,14 +769,18 @@ POLICY_LOOP:
     if ($itr % $save_interval == 0) {
         $actor_net->save_parameters(sprintf("$save_model/actor-%06d.par", $itr));
         $critic_net->save_parameters(sprintf("$save_model/critic-%06d.par", $itr));
-        $state_normalizer->save(sprintf("%06d", $itr));
+        if ($state_normalization) {
+            $state_normalizer->save(sprintf("%06d", $itr));
+        }
     }
 
     if ($best_return < $test_return) {
         $best_return = $test_return;
         $actor_net->save_parameters("$save_model/actor-best.par");
         $critic_net->save_parameters("$save_model/critic-best.par");
-        $state_normalizer->save("best");
+        if ($state_normalization) {
+            $state_normalizer->save("best");
+        }
     }
 
     last if $interrupt;
@@ -766,4 +788,6 @@ POLICY_LOOP:
 
 $actor_net->save_parameters("$save_model/actor.par");
 $critic_net->save_parameters("$save_model/critic.par");
-$state_normalizer->save;
+if ($state_normalization) {
+    $state_normalizer->save;
+}
