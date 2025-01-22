@@ -79,6 +79,17 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
         joint->setLimitEnforcement(true);
     }
 
+    double cfm = dart::constraint::JointLimitConstraint::getConstraintForceMixing();
+    double erp = dart::constraint::JointLimitConstraint::getErrorReductionParameter();
+    cfm = 0.1;
+    erp = 0.2;
+    dart::constraint::JointLimitConstraint::setConstraintForceMixing(cfm);
+    dart::constraint::JointLimitConstraint::setErrorReductionParameter(erp);
+    dart::constraint::ContactConstraint::setConstraintForceMixing(cfm);
+    dart::constraint::ContactConstraint::setErrorReductionParameter(erp);
+    cout << "CFM: " << cfm << endl;
+    cout << "ERP: " << erp << endl;
+
     refMotion = readVectorXdListFrom(json["ref_motion"]);
     frameRate = json["frame_rate"].get<int>();
     kp = Eigen::VectorXd(skeleton->getNumDofs());
@@ -105,7 +116,7 @@ void SimpleEnv::reset()
     initPos << 0, 0, 0, refMotion[0];
     skeleton->setPositions(initPos);
     VectorXd initVel = VectorXd::Zero(skeleton->getNumDofs());
-    initVel[0] = 1.2;
+    initVel[0] = 1.5;
     skeleton->setVelocities(initVel);
     prev_com = skeleton->getRootBodyNode()->getCOM();
     done = false;
@@ -165,14 +176,15 @@ void SimpleEnv::updateState()
     done = done || (curr_com.y() < 0.50 || curr_com.y() > 1.70);
 
     double r_com_vel, r_ref, r_norm;
-    r_com_vel = 1 * exp(-5 * abs((curr_com.x() - prev_com.x()) * actionRate - 1.2));
+    //r_com_vel = 1 * exp(-5 * abs((curr_com.x() - prev_com.x()) * actionRate - 1.2));
+    r_com_vel = (curr_com.x() - prev_com.x()) * actionRate - 1.2;
 
     //double theta = sin(getTime() / 4 * M_PI) * M_PI / 6;
     //r_ref = 10 * (exp(-5 * abs(q[3] - theta)) + exp(-5 * abs(q[6] + theta)));
     VectorXd ref = refMotion[frameIdx];
     r_ref = 10 * exp(-2 * (q.tail(6) - ref).norm());
 
-    r_norm = 0.5 * exp(-0.5 * action.norm());
+    r_norm = 2 * exp(-0.5 * action.norm());
 
     reward = r_com_vel + r_ref + r_norm;
     //cout << r_com_vel << " " << r_ref << " " << r_norm << endl;
