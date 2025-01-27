@@ -3,6 +3,7 @@
 
 #include <Eigen/Core>
 #include <dart/dart.hpp>
+#include <random>
 #include "CharacterEnv.h"
 
 class SimpleEnv: public CharacterEnv
@@ -25,8 +26,12 @@ class SimpleEnv: public CharacterEnv
         int frameRate;
         Eigen::VectorXd kp, kd;
         Eigen::MatrixXd mkp, mkd;
-        double period, phase;
+        double period, phase, phaseShift;
         int frameIdx;
+
+        std::default_random_engine generator;
+        std::uniform_real_distribution<double> uni_dist;
+        std::normal_distribution<double> norm_dist;
 };
 
 #endif
