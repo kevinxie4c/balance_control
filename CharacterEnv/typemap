@@ -3,6 +3,7 @@ CharacterEnv *          T_PTROBJ
 CharacterEnvPtr         T_PTROBJ
 ParallelEnv *           T_PTROBJ
 OMPEnv *                T_PTROBJ
+QOMPEnv *               T_PTROBJ
 Eigen::MatrixXf *       T_PTROBJ
 doubleArray *           T_ARRAY
 CharacterEnvPtrArray *  T_ARRAY

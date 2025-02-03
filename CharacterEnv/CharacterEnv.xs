@@ -4,6 +4,7 @@
 #include "CharacterEnv.h"
 #include "ParallelEnv.h"
 #include "OMPEnv.h"
+#include "QOMPEnv.h"
 
 
 #ifdef __cplusplus
@@ -509,6 +510,154 @@ OUTPUT:
 
 Eigen::MatrixXf *
 OMPEnv::get_best_traj_matrix()
+CODE:
+    Eigen::MatrixXf *m = new Eigen::MatrixXf(THIS->best_traj.cast<float>());
+    RETVAL = m;
+OUTPUT:
+    RETVAL
+
+
+MODULE = CharacterEnv		PACKAGE = QOMPEnv
+
+QOMPEnv *
+QOMPEnv::new(const char *cfgFilename, size_t num_threads)
+CODE:
+    RETVAL = new QOMPEnv(cfgFilename, num_threads);
+OUTPUT:
+    RETVAL
+
+
+MODULE = CharacterEnv		PACKAGE = QOMPEnvPtr
+
+void
+QOMPEnv::DESTROY()
+
+
+CharacterEnvPtrArray *
+QOMPEnv::get_env_list()
+PREINIT:
+    U32 size_RETVAL;
+CODE:
+    size_RETVAL = THIS->envs.size();
+    RETVAL = THIS->envs.data();
+OUTPUT:
+    RETVAL
+CLEANUP:
+    XSRETURN(size_RETVAL);
+
+
+void
+QOMPEnv::reset()
+
+
+void
+QOMPEnv::step()
+
+
+void
+QOMPEnv::set_means_matrix(Eigen::MatrixXf* m)
+CODE:
+    THIS->means = m->cast<double>();
+
+
+void
+QOMPEnv::set_stds_matrix(Eigen::MatrixXf* m)
+CODE:
+    THIS->stds = m->cast<double>();
+
+
+void
+QOMPEnv::set_values_matrix(Eigen::MatrixXf* m)
+CODE:
+    THIS->values = m->cast<double>();
+
+
+void
+QOMPEnv::set_actions_matrix(Eigen::MatrixXf* m)
+CODE:
+    THIS->actions = m->cast<double>();
+
+
+void
+QOMPEnv::set_logps_matrix(Eigen::MatrixXf* m)
+CODE:
+    THIS->logps = m->cast<double>();
+
+
+Eigen::MatrixXf *
+QOMPEnv::get_observations_matrix()
+CODE:
+    Eigen::MatrixXf *m = new Eigen::MatrixXf(THIS->observations.cast<float>());
+    RETVAL = m;
+OUTPUT:
+    RETVAL
+
+
+Eigen::MatrixXf *
+QOMPEnv::get_obs_buffer_matrix()
+CODE:
+    Eigen::MatrixXf *m = new Eigen::MatrixXf(THIS->obs_buffer.cast<float>());
+    RETVAL = m;
+OUTPUT:
+    RETVAL
+
+
+Eigen::MatrixXf *
+QOMPEnv::get_act_buffer_matrix()
+CODE:
+    Eigen::MatrixXf *m = new Eigen::MatrixXf(THIS->act_buffer.cast<float>());
+    RETVAL = m;
+OUTPUT:
+    RETVAL
+
+
+Eigen::MatrixXf *
+QOMPEnv::get_ret_buffer_matrix()
+CODE:
+    Eigen::MatrixXf *m = new Eigen::MatrixXf(THIS->ret_buffer.cast<float>());
+    RETVAL = m;
+OUTPUT:
+    RETVAL
+
+
+void
+QOMPEnv::trace_back()
+
+
+double
+QOMPEnv::get_avg_ret()
+CODE:
+    RETVAL = THIS->avg_ret;
+OUTPUT:
+    RETVAL
+
+
+double
+QOMPEnv::get_max_ret()
+CODE:
+    RETVAL = THIS->max_ret;
+OUTPUT:
+    RETVAL
+
+
+int
+QOMPEnv::get_max_len()
+CODE:
+    RETVAL = THIS->max_len;
+OUTPUT:
+    RETVAL
+    
+
+int
+QOMPEnv::get_buffer_size()
+CODE:
+    RETVAL = THIS->buffer_size;
+OUTPUT:
+    RETVAL
+
+
+Eigen::MatrixXf *
+QOMPEnv::get_best_traj_matrix()
 CODE:
     Eigen::MatrixXf *m = new Eigen::MatrixXf(THIS->best_traj.cast<float>());
     RETVAL = m;
