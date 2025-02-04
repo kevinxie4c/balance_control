@@ -60,5 +60,6 @@ void CartpoleEnv::updateState()
     VectorXd dq = skeleton->getVelocities();
     state << q, dq;
     done = abs(q[0]) > 2.4 || abs(q[1]) > 0.20944;
-    reward = done ? 0 : exp(-abs(q[0])) + exp(-dq.norm());
+    //reward = done ? 0 : exp(-abs(q[0])) + exp(-dq.norm());
+    reward = done ? 0 : exp(-abs(q[1]));
 }

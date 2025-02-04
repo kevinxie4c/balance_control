@@ -167,6 +167,73 @@ sub set_logps {
     $self->set_logps_matrix($m);
 }
 
+package QOMPEnvPtr;
+
+sub get_observations {
+    my $self = shift;
+    my $m = $self->get_observations_matrix;
+    my $a = mx->nd->empty([$m->cols, $m->rows]);
+    CharacterEnv::_matrix2mxar($m, $a);
+    return $a;
+}
+
+sub get_obs_buffer {
+    my $self = shift;
+    my $m = $self->get_obs_buffer_matrix;
+    my $a = mx->nd->empty([$m->cols, $m->rows]);
+    CharacterEnv::_matrix2mxar($m, $a);
+    return $a;
+}
+
+sub get_act_buffer {
+    my $self = shift;
+    my $m = $self->get_act_buffer_matrix;
+    my $a = mx->nd->empty([$m->cols, $m->rows]);
+    CharacterEnv::_matrix2mxar($m, $a);
+    return $a;
+}
+
+sub get_ret_buffer {
+    my $self = shift;
+    my $m = $self->get_ret_buffer_matrix;
+    #my $a = mx->nd->empty([$m->cols, $m->rows]);
+    my $a = mx->nd->empty([$m->rows]);
+    CharacterEnv::_matrix2mxar($m, $a);
+    return $a;
+}
+
+sub get_best_traj {
+    my $self = shift;
+    my $m = $self->get_best_traj_matrix;
+    my $a = mx->nd->empty([$m->cols, $m->rows]);
+    CharacterEnv::_matrix2mxar($m, $a);
+    return $a;
+}
+
+sub set_means {
+    my $self = shift;
+    my $a = shift;
+    my $m = Eigen::MatrixXf->new($a->shape->[1], $a->shape->[0]);
+    CharacterEnv::_mxar2matrix($a, $m);
+    $self->set_means_matrix($m);
+}
+
+sub set_stds {
+    my $self = shift;
+    my $a = shift;
+    my $m = Eigen::MatrixXf->new($a->shape->[1], $a->shape->[0]);
+    CharacterEnv::_mxar2matrix($a, $m);
+    $self->set_stds_matrix($m);
+}
+
+sub set_values {
+    my $self = shift;
+    my $a = shift;
+    my $m = Eigen::MatrixXf->new($a->shape->[1], $a->shape->[0]);
+    CharacterEnv::_mxar2matrix($a, $m);
+    $self->set_values_matrix($m);
+}
+
 1;
 __END__
 # Below is stub documentation for your module. You'd better edit it!

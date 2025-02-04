@@ -49,8 +49,8 @@ void QOMPEnv::step()
                 {
                     //return lhs->value > rhs->value;
                     //return lhs->reward > rhs->reward;
-                    //return lhs->accReward > rhs->accReward;
-                    return lhs->accReward + lhs->value > rhs->accReward + rhs->value;
+                    return lhs->accReward > rhs->accReward;
+                    //return lhs->accReward + lhs->value > rhs->accReward + rhs->value;
                 });
         savedSamples.back().resize(numSave);
         //cout << "sort" << endl;
@@ -61,7 +61,7 @@ void QOMPEnv::step()
     {
         size_t id = i % num_threads;
         shared_ptr<QSample> sample = savedSamples.back()[i];
-        sample->value = values(0, i);
+        //sample->value = values(0, i); // Should I remove this?
 
         for (size_t j = 0; j < numSample / savedSamples.back().size(); ++j)
         {
@@ -71,7 +71,6 @@ void QOMPEnv::step()
             VectorXd x = samplers[id]();
             double logprob = StdNormalDistVec::logProbability(x);
             envs[id]->action = means.col(i) + (stds.col(i).array() * x.array()).matrix();
-            //double logprob = logps(0, i);
             //envs[id]->action = actions.col(i);
             //cout << "a " << envs[id]->action.transpose() << endl;
 
@@ -144,10 +143,10 @@ void QOMPEnv::trace_back()
     shared_ptr<QSample> best = nullptr;
     for (shared_ptr<QSample> &s: savedSamples[0])
     {
-        avg_ret += s->retval;
-        if (s->retval > max_ret)
+        avg_ret += s->maxval;
+        if (s->maxval > max_ret)
         {
-            max_ret = s->retval;
+            max_ret = s->maxval;
             best = s;
         }
     }

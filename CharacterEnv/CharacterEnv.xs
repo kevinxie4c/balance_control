@@ -572,18 +572,6 @@ CODE:
     THIS->values = m->cast<double>();
 
 
-void
-QOMPEnv::set_actions_matrix(Eigen::MatrixXf* m)
-CODE:
-    THIS->actions = m->cast<double>();
-
-
-void
-QOMPEnv::set_logps_matrix(Eigen::MatrixXf* m)
-CODE:
-    THIS->logps = m->cast<double>();
-
-
 Eigen::MatrixXf *
 QOMPEnv::get_observations_matrix()
 CODE:

@@ -24,12 +24,11 @@ class QOMPEnv
         Eigen::MatrixXd velocities;
         Eigen::MatrixXd means, stds;
         Eigen::MatrixXd observations;
-        Eigen::MatrixXd actions;
         Eigen::MatrixXd logps;
         Eigen::MatrixXd values;
         //size_t numSample = 4000, numSave = 1000;
         //size_t numSample = 1, numSave = 1;
-        size_t numSample = 4, numSave = 4;
+        size_t numSample = 64, numSave = 8;
         size_t numObs; // Why need this?
         std::vector<std::vector<std::shared_ptr<QSample>>> savedSamples;
         std::vector<StdNormalDistVec> samplers;

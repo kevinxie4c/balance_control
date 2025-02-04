@@ -1,0 +1,6 @@
+{
+    "policy_learning_rate": 1e-4,
+    "value_function_learning_rate": 1e-4,
+    "actor_layers": [4, 4],
+    "critic_layers": [4, 2]
+}
