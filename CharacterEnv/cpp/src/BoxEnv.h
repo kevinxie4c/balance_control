@@ -25,6 +25,7 @@ class BoxEnv: public CharacterEnv
         std::uniform_real_distribution<double> distribution;
 
         std::ofstream fh_pos;
+        double w_a = 1;
 };
 
 #endif

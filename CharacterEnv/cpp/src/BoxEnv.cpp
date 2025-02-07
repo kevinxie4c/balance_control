@@ -39,6 +39,11 @@ BoxEnv::BoxEnv(const char *cfgFilename)
 
     //fh_pos.open("pos.txt");
     //cout << "fh_pos.open" << endl;
+    ifstream fh_w("weight.txt");
+    fh_w >> w_a;
+    fh_w.close();
+    cout << "w_a: " << w_a << endl;
+
     reset();
 }
 
@@ -81,7 +86,7 @@ void BoxEnv::updateState()
     VectorXd dq = skeleton->getVelocities();
     state << q, dq;
     done = abs(q[0]) > 2;
-    reward = done ? 0 : exp(-abs(q[0]));
+    reward = done ? 0 : exp(-abs(q[0])) - w_a * (action.norm() * action.norm());
 }
 
 BoxEnv::~BoxEnv()

@@ -31,7 +31,7 @@ my $mini_batch_size = 256;
 my $a_scale = 1;
 my $parameters = undef;
 my $config_file = undef;
-my $alpha = 1e-1;
+my $alpha = 1e3;
 my $enable_clipping = 0;
 my $print_help = 0;
 
