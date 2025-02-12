@@ -434,7 +434,7 @@ sub train_value_function {
     my ($observation_buffer, $return_buffer) = @_;
     my $value_loss;
     autograd->record(sub {
-            $value_loss = mx->nd->mean(($return_buffer - $critic_net->($observation_buffer)) ** 2);
+            $value_loss = mx->nd->mean(($return_buffer - $critic_net->($observation_buffer)->squeeze) ** 2);
         });
     $value_loss->backward;
     #print($value_loss->aspdl);
