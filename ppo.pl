@@ -354,11 +354,14 @@ package Normalizer {
 package CustomInit {
     use AI::MXNet::Gluon::Mouse;
     use AI::MXNet::Function::Parameters; # must include this for function parameters
+    use File::Slurp;
     extends 'AI::MXNet::Initializer';
     method _init_weight(Str $name, AI::MXNet::NDArray $arr)
     {
-        $arr->at(0, 0) .= -2.0;
-        $arr->at(0, 1) .= -0.8;
+        my $s = read_file('init_para.txt');
+        my @a = split ' ', $s;
+        $arr->at(0, 0) .= -$a[0];
+        $arr->at(0, 1) .= -$a[1];
     }
 
     __PACKAGE__->register;
@@ -585,7 +588,7 @@ for my $itr (1 .. $num_itrs) {
     my ($sum_return, $sum_length, $num_episodes) = (0, 0, 0);
     #my ($episode_return, $episode_length) = (0, 0);
     #my $observation = mx->nd->array([[$env->get_state_list]]);
-    #if (state_normalization) {
+    #if ($state_normalization) {
     #    $observation = $state_normalizer->normalize($observation, 0);
     #}
 
