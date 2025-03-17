@@ -110,7 +110,6 @@ void SimpleEnv::step()
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
         VectorXd f = force + df * dt * i;
-        f_forces << f.transpose() << endl;
         //skeleton->setForces(force);
         skeleton->setForces(f);
         world->step();
