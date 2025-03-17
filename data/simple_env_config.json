@@ -2,12 +2,14 @@
     "env": "simple",
     "character": "data/simple_biped.json",
     "camera": {
-        "eye": [30, 2, 20],
-        "center": [15, 2, 0]
+        "eye": [5, 1, 5],
+        "center": [0, 1, 0]
     },
     "friction_coeff": 1.0,
     "restitution_coeff": 0.0,
     "scales": "data/simple_env_scales.txt",
     "lower_limits": "data/simple_env_lower_limits.txt",
-    "upper_limits": "data/simple_env_upper_limits.txt"
+    "upper_limits": "data/simple_env_upper_limits.txt",
+    "ref_motion": "data/0005_Walking001_single_cycle_sim_env.txt",
+    "frame_rate": 120
 }

@@ -22,6 +22,7 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
     world = dart::simulation::World::create();
     //skeleton->setGravity(Vector3d(0, -9.8, 0)); // Why it doesn't work?
     world->setGravity(Vector3d(0, -9.8, 0));
+    //world->setGravity(Vector3d(0, 0, 0));
     world->addSkeleton(skeleton);
     world->setTimeStep(1.0 / forceRate);
     //world->getConstraintSolver()->setCollisionDetector(dart::collision::DARTCollisionDetector::create());
@@ -68,14 +69,14 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
         joint->setLimitEnforcement(true);
     }
 
-    f_forces.open("forces.txt");
+    refMotion = readVectorXdListFrom(json["ref_motion"]);
+    frameRate = json["frame_rate"].get<int>();
 
     reset();
 }
 
 SimpleEnv::~SimpleEnv()
 {
-    f_forces.close();
 }
 
 void SimpleEnv::reset()
@@ -85,6 +86,7 @@ void SimpleEnv::reset()
     skeleton->setPositions(zeros);
     skeleton->setVelocities(zeros);
     prev_com = skeleton->getRootBodyNode()->getCOM();
+    done = false;
     updateState();
 }
 
@@ -104,6 +106,7 @@ void SimpleEnv::step()
     double dt = 1.0 / forceRate;
     //force.setZero();
     //cout << force.transpose() << endl;
+    done = false;
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
         VectorXd f = force + df * dt * i;
@@ -125,9 +128,34 @@ void SimpleEnv::updateState()
     else
         spNode = rFoot;
     Vector3d r_IP = skeleton->getCOM() - spNode->getCOM();
-    state << skeleton->getPositions(), skeleton->getVelocities(), r_IP;
+    VectorXd q = skeleton->getPositions();
+    VectorXd dq = skeleton->getVelocities();
+    state << q, dq, r_IP;
     Eigen::Vector3d curr_com = skeleton->getRootBodyNode()->getCOM();
-    done = curr_com.y() < 0.50 || curr_com.y() > 1.70;
-    reward = 100 * (curr_com.x() - prev_com.x()) + 0.1 * exp(-action.norm());
+    done = done || (curr_com.y() < 0.50 || curr_com.y() > 1.70);
+
+    double r_com_vel, r_ref, r_norm;
+    r_com_vel = 1 * exp(-5 * abs((curr_com.x() - prev_com.x()) * actionRate - 1.2));
+
+    //double theta = sin(getTime() / 4 * M_PI) * M_PI / 6;
+    //r_ref = 10 * (exp(-5 * abs(q[3] - theta)) + exp(-5 * abs(q[6] + theta)));
+    VectorXd ref = refMotion[(size_t)round(getTime() * frameRate) % refMotion.size()];
+    r_ref = 10 * exp(-2 * (q.tail(6) - ref).norm());
+
+    r_norm = 0.5 * exp(-0.5 * action.norm());
+
+    reward = r_com_vel + r_ref + r_norm;
+    //cout << r_com_vel << " " << r_ref << " " << r_norm << endl;
     //cout << curr_com.transpose() << endl;
+
+    /*
+    if (isnan(reward) || state.array().isNaN().any())
+    {
+        //cout << state << endl;
+        //cout << reward << endl;
+        state.setOnes();
+        reward = -100;
+        done = true;
+    }
+    */
 }
