@@ -1,7 +1,12 @@
 #!/usr/bin/env perl
 use File::Copy;
 
+die "usage: $0 suffix [path]" unless @ARGV == 1 or @ARGV == 2;
 my $suffix = shift @ARGV;
-copy "model/actor-$suffix.par", "model/actor.par";
-copy "model/critic-$suffix.par", "model/critic.par";
-copy "model/state_normalizer-$suffix.nd", "model/state_normalizer.nd";
+my $path = 'model';
+if (@ARGV) {
+    $path = shift @ARGV;
+}
+copy "$path/actor-$suffix.par", "$path/actor.par";
+copy "$path/critic-$suffix.par", "$path/critic.par";
+copy "$path/state_normalizer-$suffix.nd", "$path/state_normalizer.nd";
