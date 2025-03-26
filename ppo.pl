@@ -32,6 +32,7 @@ my $a_scale = 1;
 my $parameters = undef;
 my $config_file = undef;
 my $enable_clipping = 0;
+my $headless = 0;
 my $print_help = 0;
 
 GetOptions(
@@ -50,6 +51,7 @@ GetOptions(
     'K|steps_per_itr=i'    => \$steps_per_itr,
     'a|a_scale=f'          => \$a_scale,
     'P|parameters=s'       => \$parameters,
+    'H|headless'           => \$headless,
     'h|help'               => \$print_help,
 );
 
@@ -511,41 +513,52 @@ if ($play_policy) {
     $env->reset;
     #$env->set_positions(mx->nd->array([0.5, 0]));
     open my $fh_J, '>', "J.txt";
-    until ($env->viewer_done) {
-        if ($env->is_playing || $env->req_step) {
-            #print($env->get_positions->aspdl, "\n");
-            #print(join(' ', $env->get_positions_list), "\n");
-            my $observation = mx->nd->array([[$env->get_state_list]]);
-            $observation = $state_normalizer->normalize($observation, 0);
-            print $fout join(' ', $env->get_positions_list), "\n";
-            #print "state: ", $observation->aspdl, "\n";
-            $env->set_normalizer_mean($state_normalizer->{ms}{mean}->aspdl->list);
-            $env->set_normalizer_std($state_normalizer->{ms}{std}->aspdl->list);
-            my $J = compute_policy_jacobian($env, $observation);
-            print $fh_J $J->aspdl->at(0, 0), " ", $J->aspdl->at(1, 0), "\n";
-            #print $J->aspdl, "\n";
-            set_policy_jacobian($env, $observation);
-            my ($mu, $sigma) = $actor_net->($observation);
-            my $action = $mu;
-            #$action = $actor_net->sample($mu, $sigma);
-            $action = $action->clip(-1, 1) if $enable_clipping;
-            print $f_action join(' ', $action->aspdl->list), "\n";
-            #print "action: ", $action->aspdl, "\n";
-            #$a_scale = 0;
-            $env->set_action_list(($action * $a_scale)->aspdl->list);
-            #$env->set_action_list((0) x $action_size);
-            $env->step;
-            my $reward = $env->get_reward;
-            my $done = $env->get_done;
-            $test_return += $acc_gamma * $reward;
-            $acc_gamma *= $gamma;
-            print $f_reward "$reward $test_return $done\n";
-            #print "(", ($env->get_state_list)[0], ") ";
-            #print "$reward ";
-            #my $done = $reward < 10;
-            #last if $done;
+
+    sub play_policy_loop {
+        #print($env->get_positions->aspdl, "\n");
+        #print(join(' ', $env->get_positions_list), "\n");
+        my $observation = mx->nd->array([[$env->get_state_list]]);
+        $observation = $state_normalizer->normalize($observation, 0);
+        print $fout join(' ', $env->get_positions_list), "\n";
+        #print "state: ", $observation->aspdl, "\n";
+        $env->set_normalizer_mean($state_normalizer->{ms}{mean}->aspdl->list);
+        $env->set_normalizer_std($state_normalizer->{ms}{std}->aspdl->list);
+        my $J = compute_policy_jacobian($env, $observation);
+        print $fh_J $J->aspdl->at(4, 3), " ", $J->aspdl->at(9, 3), "\n"; # note that PDL is column-major while MXNet is row-major
+        #print $J->aspdl, "\n";
+        set_policy_jacobian($env, $observation);
+        my ($mu, $sigma) = $actor_net->($observation);
+        my $action = $mu;
+        #$action = $actor_net->sample($mu, $sigma);
+        $action = $action->clip(-1, 1) if $enable_clipping;
+        print $f_action join(' ', $action->aspdl->list), "\n";
+        #print "action: ", $action->aspdl, "\n";
+        #$a_scale = 0;
+        $env->set_action_list(($action * $a_scale)->aspdl->list);
+        #$env->set_action_list((0) x $action_size);
+        $env->step;
+        my $reward = $env->get_reward;
+        my $done = $env->get_done;
+        $test_return += $acc_gamma * $reward;
+        $acc_gamma *= $gamma;
+        print $f_reward "$reward $test_return $done\n";
+        #print "(", ($env->get_state_list)[0], ") ";
+        #print "$reward ";
+        #my $done = $reward < 10;
+        #last if $done;
+    }
+
+    if ($headless) {
+        for my $i (1 .. 1000) {
+            play_policy_loop($env, $acc_gamma, $test_return);
         }
-        $env->render_viewer;
+    } else {
+        until ($env->viewer_done) {
+            if ($env->is_playing || $env->req_step) {
+                play_policy_loop($env, $acc_gamma, $test_return);
+            }
+            $env->render_viewer;
+        }
     }
     exit();
 }
