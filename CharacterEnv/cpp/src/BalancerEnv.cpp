@@ -5,7 +5,7 @@
 #include "BalancerEnv.h"
 #include "IOUtil.h"
 
-#define SIM_MODE 0
+#define SIM_MODE 2
 
 using namespace std;
 using namespace Eigen;
@@ -52,6 +52,11 @@ BalancerEnv::BalancerEnv(const char *cfgFilename)
     scales = readVectorXdFrom(json["scales"]);
     state = VectorXd(skeleton->getNumDofs() * 2);
     action = VectorXd(skeleton->getNumDofs() - 1); // floor is not actuated
+
+    ifstream fh_w("weight.txt");
+    fh_w >> w_a;
+    fh_w.close();
+    cout << "w_a: " << w_a << endl;
 
     reset();
 }
@@ -194,6 +199,6 @@ void BalancerEnv::updateState()
     VectorXd dq = skeleton->getVelocities();
     state << q, dq;
     done = abs(q[0]) > 0.5 || done;
-    reward = -action.norm() + (done ? 0 : 100);
+    reward = (done ? 0 : 100) - w_a * (action.norm() * action.norm());
     //cout << done << " " << reward << endl;
 }

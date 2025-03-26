@@ -19,6 +19,8 @@ class BalancerEnv: public CharacterEnv
         Eigen::VectorXd scales;
         Eigen::VectorXd lowerLimits;
         Eigen::VectorXd upperLimits;
+
+        double w_a = 1;
 };
 
 #endif
