@@ -32,7 +32,9 @@ my $a_scale = 1;
 my $parameters = undef;
 my $config_file = undef;
 my $alpha = 1e-1;
+my $lips_scale = 1;
 my $enable_clipping = 0;
+my $headless = 0;
 my $print_help = 0;
 
 GetOptions(
@@ -51,6 +53,8 @@ GetOptions(
     'K|steps_per_itr=i'    => \$steps_per_itr,
     'a|a_scale=f'          => \$a_scale,
     'P|parameters=s'       => \$parameters,
+    'c|lips_scale=f'       => \$lips_scale,
+    'H|headless'           => \$headless,
     'h|help'               => \$print_help,
 );
 
@@ -257,8 +261,9 @@ package ActorModel {
 
                             # Lipschitz
                             my $lip_name = "c$layer_num";
-                            $self->params->get($lip_name, shape => [1]);
+                            $self->params->get($lip_name, shape => [1], grad_req => 'null');
                             $self->$lip_name($self->params->get($lip_name));
+                            ++$layer_num;
                         }
                     });
                 $self->dense_base($net);
@@ -276,7 +281,7 @@ package ActorModel {
                 #    $self->$lip_name($self->params->get($lip_name));
                 #}
 
-                $self->params->get('c_mu', shape => [1]);
+                $self->params->get('c_mu', shape => [1], grad_req => 'null');
                 $self->c_mu($self->params->get('c_mu'));
             });
     }
@@ -293,6 +298,7 @@ package ActorModel {
             my $w_normalized = $self->normalization($w, $self->softplus($c));
             my $y = mx->nd->broadcast_add(mx->nd->dot($w_normalized, $x), $b->expand_dims(axis => 1));
             $x = $act->($y);
+            ++$layer_num;
         }
         my $dense_mu = $self->dense_mu;
         my $w_mu = $dense_mu->weight->data;
@@ -312,7 +318,7 @@ package ActorModel {
             my $lip_name = "c$layer_num";
             my $soft_c = $self->softplus($self->$lip_name->data);
             $lip_bound *= $soft_c->aspdl->at(0);
-            $layer_num++;
+            ++$layer_num;
         }
         my $soft_c_mu = $self->softplus($self->c_mu->data);
         $lip_bound *= $soft_c_mu->aspdl->at(0);
@@ -439,7 +445,7 @@ my $actor_net = ActorModel->new(sizes => $actor_layers,  activation => 'relu');
 my $critic_net = mlp($critic_layers, 'relu');
 #print $critic_net;
 if (defined($load_model)) {
-    die "Canno find the model files!" unless -d $load_model and -f "$load_model/actor.par" and -f "$load_model/critic.par";
+    die "Cannot find the model files!" unless -d $load_model and -f "$load_model/actor.par" and -f "$load_model/critic.par";
     print "load actor from $load_model/actor.par\n";
     $actor_net->load_parameters("$load_model/actor.par", allow_missing => 1);
     print "load critic from $load_model/critic.par\n";
@@ -455,18 +461,20 @@ if (defined($load_model)) {
     $critic_net->initialize(mx->init->Xavier());
 }
 # init Lipschitz parameters
-unless ($play_policy) {
+unless (0 && $play_policy) {
     for my $layer_num(0 .. scalar(@{$actor_net->dense_base}) - 1) {
         my $lip_name = "c$layer_num";
         my $layer = $actor_net->dense_base->[$layer_num];
         my $weight = $layer->weight->data($current_ctx);
         my $initial_lip = abs($weight->aspdl)->sumover->max->sclr;
+        $initial_lip *= $lips_scale;
         print "bound being initialized to $initial_lip\n";
         my $lip_initializer = AI::MXNet::Constant->new(value => $initial_lip);
         $actor_net->$lip_name->initialize(init => $lip_initializer);
     }
     my $weight_mu = $actor_net->dense_mu->weight->data($current_ctx);
     my $initial_lip_mu = abs($weight_mu->aspdl)->sumover->max->sclr;
+    $initial_lip_mu *= $lips_scale;
     my $lip_initializer_mu = AI::MXNet::Constant->new(value => $initial_lip_mu);
     $actor_net->c_mu->initialize(init => $lip_initializer_mu);
 }
@@ -499,7 +507,8 @@ sub train_policy {
                 (1 + $clip_ratio) * $advantage_buffer,
                 (1 - $clip_ratio) * $advantage_buffer,
             );
-            $policy_loss = -mx->nd->mean(mx->nd->broadcast_minimum($ratio * $advantage_buffer, $min_advantage)) + $alpha * $actor_net->compute_network_lipschitz_bound();
+            #$policy_loss = -mx->nd->mean(mx->nd->broadcast_minimum($ratio * $advantage_buffer, $min_advantage)) + $alpha * $actor_net->compute_network_lipschitz_bound();
+            $policy_loss = -mx->nd->mean(mx->nd->broadcast_minimum($ratio * $advantage_buffer, $min_advantage));
         });
     $policy_loss->backward;
     #print($policy_loss->aspdl);
@@ -514,7 +523,7 @@ sub train_value_function {
     my ($observation_buffer, $return_buffer) = @_;
     my $value_loss;
     autograd->record(sub {
-            $value_loss = mx->nd->mean(($return_buffer - $critic_net->($observation_buffer)) ** 2);
+            $value_loss = mx->nd->mean(($return_buffer - $critic_net->($observation_buffer)->squeeze) ** 2);
         });
     $value_loss->backward;
     #print($value_loss->aspdl);
@@ -594,42 +603,53 @@ if ($play_policy) {
     $env->reset;
     #$env->set_positions(mx->nd->array([0.5, 0]));
     open my $fh_J, '>', "J.txt";
-    until ($env->viewer_done) {
-        if ($env->is_playing || $env->req_step) {
-            #print($env->get_positions->aspdl, "\n");
-            #print(join(' ', $env->get_positions_list), "\n");
-            my $observation = mx->nd->array([[$env->get_state_list]]);
-            $observation = $state_normalizer->normalize($observation, 0);
-            print $fout join(' ', $env->get_positions_list), "\n";
-            #print "state: ", $observation->aspdl, "\n";
-            $env->set_normalizer_mean($state_normalizer->{ms}{mean}->aspdl->list);
-            $env->set_normalizer_std($state_normalizer->{ms}{std}->aspdl->list);
-            my $J = compute_policy_jacobian($env, $observation);
-            #print $J->aspdl, "\n";
-            print $fh_J $J->aspdl->at(0, 0), " ", $J->aspdl->at(1, 0), "\n";
-            set_policy_jacobian($env, $observation);
-            my ($mu, $sigma) = $actor_net->($observation);
-            my $action = $mu;
-            #$action = $actor_net->sample($mu, $sigma);
-            $action = $action->clip(-1, 1) if $enable_clipping;
-            print $f_action join(' ', $action->aspdl->list), "\n";
-            #print "action: ", $action->aspdl, "\n";
-            #$a_scale = 0;
-            $env->set_action_list(($action * $a_scale)->aspdl->list);
-            #$env->set_action_list((0) x $action_size);
-            $env->step;
-            my $reward = $env->get_reward;
-            my $done = $env->get_done;
-            $test_return += $acc_gamma * $reward;
-            $acc_gamma *= $gamma;
-            print $f_reward "$reward $test_return $done\n";
-            #print "(", ($env->get_state_list)[0], ") ";
-            #print "$reward ";
-            #my $done = $reward < 10;
-            #last if $done;
-        }
-        $env->render_viewer;
+
+    sub play_policy_loop {
+        #print($env->get_positions->aspdl, "\n");
+        #print(join(' ', $env->get_positions_list), "\n");
+        my $observation = mx->nd->array([[$env->get_state_list]]);
+        $observation = $state_normalizer->normalize($observation, 0);
+        print $fout join(' ', $env->get_positions_list), "\n";
+        #print "state: ", $observation->aspdl, "\n";
+        $env->set_normalizer_mean($state_normalizer->{ms}{mean}->aspdl->list);
+        $env->set_normalizer_std($state_normalizer->{ms}{std}->aspdl->list);
+        my $J = compute_policy_jacobian($env, $observation);
+        print $fh_J $J->aspdl->at(4, 3), " ", $J->aspdl->at(9, 3), "\n"; # note that PDL is column-major while MXNet is row-major
+        #print $J->aspdl, "\n";
+        set_policy_jacobian($env, $observation);
+        my ($mu, $sigma) = $actor_net->($observation);
+        my $action = $mu;
+        #$action = $actor_net->sample($mu, $sigma);
+        $action = $action->clip(-1, 1) if $enable_clipping;
+        print $f_action join(' ', $action->aspdl->list), "\n";
+        #print "action: ", $action->aspdl, "\n";
+        #$a_scale = 0;
+        $env->set_action_list(($action * $a_scale)->aspdl->list);
+        #$env->set_action_list((0) x $action_size);
+        $env->step;
+        my $reward = $env->get_reward;
+        my $done = $env->get_done;
+        $test_return += $acc_gamma * $reward;
+        $acc_gamma *= $gamma;
+        print $f_reward "$reward $test_return $done\n";
+        #print "(", ($env->get_state_list)[0], ") ";
+        #print "$reward ";
+        #my $done = $reward < 10;
+        #last if $done;
     }
+
+    if ($headless) {
+        for my $i (1 .. 1000) {
+            play_policy_loop($env, $acc_gamma, $test_return);
+        }
+    } else {
+        until ($env->viewer_done) {
+            if ($env->is_playing || $env->req_step) {
+                play_policy_loop($env, $acc_gamma, $test_return);
+            }
+            $env->render_viewer;
+         }
+     }
     exit();
 }
 
@@ -674,7 +694,7 @@ for my $itr (1 .. $num_itrs) {
 
     #    if ($done || $t == $steps_per_itr) {
     #        #exit;  # debug
-    #        my $last_value = $value_t;
+    #        my $last_value = $done ? 0 : $critic_net->($observation)->aspdl->at(0, 0);
     #        $buffer->finish_trajectory($last_value);
     #        $sum_return += $episode_return;
     #        $sum_length += $episode_length;
@@ -716,7 +736,7 @@ for my $itr (1 .. $num_itrs) {
             $buffers[$id]->store($observation[$id], $action[$id], $reward, $value_t, $logprobability_t[$id]);
 
             if ($done) {
-                my $last_value = $value_t;
+                my $last_value = 0;
                 $buffers[$id]->finish_trajectory($last_value);
                 $num_episodes += 1;
                 $env->reset;
@@ -773,7 +793,10 @@ for my $itr (1 .. $num_itrs) {
 
             $buffers[$id]->store($observation[$id], $action[$id], $reward, $value_t, $logprobability_t[$id]);
 
-            my $last_value = $value_t;
+            my @state_list = $env->get_state_list; # get last observation for last_value
+            $observation[$id] = mx->nd->array([[@state_list]]);
+            $observation[$id] = $state_normalizer->normalize($observation[$id]);
+            my $last_value = $critic_net->($observation[$id])->aspdl->at(0, 0);
             $buffers[$id]->finish_trajectory($last_value);
             $num_episodes += 1;
             $env->reset;
