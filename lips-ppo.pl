@@ -461,7 +461,7 @@ if (defined($load_model)) {
     $critic_net->initialize(mx->init->Xavier());
 }
 # init Lipschitz parameters
-unless (0 && $play_policy) {
+unless ($play_policy) {
     for my $layer_num(0 .. scalar(@{$actor_net->dense_base}) - 1) {
         my $lip_name = "c$layer_num";
         my $layer = $actor_net->dense_base->[$layer_num];

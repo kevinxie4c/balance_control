@@ -5,7 +5,7 @@
 #include "BalancerEnv.h"
 #include "IOUtil.h"
 
-#define SIM_MODE 0
+#define SIM_MODE 2
 
 using namespace std;
 using namespace Eigen;
