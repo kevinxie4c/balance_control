@@ -3,6 +3,7 @@
 #include <random>
 #include <Eigen/Core>
 #include <nlohmann/json.hpp>
+#include <dart/collision/bullet/BulletCollisionDetector.hpp>
 #include "SimCharacter.h"
 #include "MimicEnv.h"
 #include "MathUtil.h"
@@ -29,7 +30,8 @@ MimicEnv::MimicEnv(const char *cfgFilename)
     world = dart::simulation::World::create();
     world->addSkeleton(skeleton);
     world->setTimeStep(1.0 / forceRate);
-    world->getConstraintSolver()->setCollisionDetector(dart::collision::DARTCollisionDetector::create());
+    //world->getConstraintSolver()->setCollisionDetector(dart::collision::DARTCollisionDetector::create());
+    world->getConstraintSolver()->setCollisionDetector(dart::collision::BulletCollisionDetector::create());
     state = VectorXd(skeleton->getNumBodyNodes() * 12 + 1);
     size_t j = 0;
     for (size_t i = 0; i < skeleton->getNumBodyNodes(); ++i)
@@ -44,7 +46,7 @@ MimicEnv::MimicEnv(const char *cfgFilename)
             }
         }
     }
-    positions = readVectorXdListFrom(json["poses"]);
+    refMotion = readVectorXdListFrom(json["ref_motion"]);
 
     floor = Skeleton::create("floor");
     BodyNodePtr body = floor->createJointAndBodyNodePair<WeldJoint>(nullptr).second;
@@ -64,6 +66,17 @@ MimicEnv::MimicEnv(const char *cfgFilename)
     tf.translation() = Vector3d(0.0, 0.0, json["floor_z"].get<double>() - floor_height / 2);
     body->getParentJoint()->setTransformFromParentBodyNode(tf);
     world->addSkeleton(floor);
+    
+    double cfm = dart::constraint::JointLimitConstraint::getConstraintForceMixing();
+    double erp = dart::constraint::JointLimitConstraint::getErrorReductionParameter();
+    cfm = 0.1;
+    erp = 0.2;
+    dart::constraint::JointLimitConstraint::setConstraintForceMixing(cfm);
+    dart::constraint::JointLimitConstraint::setErrorReductionParameter(erp);
+    dart::constraint::ContactConstraint::setConstraintForceMixing(cfm);
+    dart::constraint::ContactConstraint::setErrorReductionParameter(erp);
+    cout << "CFM: " << cfm << endl;
+    cout << "ERP: " << erp << endl;
 
     kp = readVectorXdFrom(json["kp"]);
     kd = readVectorXdFrom(json["kd"]);
@@ -78,13 +91,15 @@ MimicEnv::MimicEnv(const char *cfgFilename)
         enableRSI = json["enableRSI"].get<bool>();
 
     action = VectorXd(skeleton->getNumDofs());
-    period = (double)positions.size() / mocapFPS;
 
     kin_skeleton = skeleton->cloneSkeleton();
 
-    std::random_device rd;
-    rng = std::mt19937(rd());
-    uni_dist = std::uniform_int_distribution<size_t>(0, positions.size() - 2);
+    period = (double)refMotion.size() / mocapFPS;
+    phaseShift = 0;
+    
+    generator = default_random_engine(chrono::system_clock::now().time_since_epoch().count());
+    uni_dist = uniform_real_distribution<double>(0.0, 0.9);
+    norm_dist = normal_distribution<double>(0.0, 1.0);
 
     reset();
 }
@@ -94,25 +109,32 @@ void MimicEnv::reset()
     world->reset();
     size_t idx = 0;
     if (enableRSI)
-        idx = uni_dist(rng);
-    skeleton->setPositions(positions[idx]);
-    VectorXd vel = skeleton->getPositionDifferences(positions[idx + 1], positions[idx]) * mocapFPS;
-    skeleton->setVelocities(vel);
-    phase = (double)idx / positions.size();
-    world->setTime((double)idx / mocapFPS);
+        phaseShift = uni_dist(generator);
+    double intPart;
+    phase = modf(getTime() / period + phaseShift, &intPart);
+    frameIdx = (size_t)round(phase * refMotion.size());
+    if (frameIdx >= refMotion.size())
+        frameIdx -= refMotion.size();
+
+    VectorXd initPos = refMotion[frameIdx];
+    skeleton->setPositions(initPos);
+
+    VectorXd initVel = skeleton->getPositionDifferences(refMotion[frameIdx + 1], refMotion[frameIdx]) * mocapFPS;
+    skeleton->setVelocities(initVel);
+
     updateState();
 }
 
 void MimicEnv::step()
 {
     double intPart;
-    phase = modf(getTime() / period, &intPart);
-    frameIdx = (size_t)round(phase * positions.size());
-    if (frameIdx >= positions.size())
-        frameIdx -= positions.size();
+    phase = modf(getTime() / period + phaseShift, &intPart);
+    frameIdx = (size_t)round(phase * refMotion.size());
+    if (frameIdx >= refMotion.size())
+        frameIdx -= refMotion.size();
 
-    const VectorXd &target = positions[frameIdx];
-    VectorXd ref = target + (action.array() * scales.array()).matrix();
+    const VectorXd &target = refMotion[frameIdx];
+    VectorXd ref = target + (action.array().min(1).max(-1) * scales.array()).matrix();
 
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
@@ -144,8 +166,6 @@ void MimicEnv::updateState()
 {
     VectorXd q = skeleton->getPositions();
     VectorXd dq = skeleton->getVelocities();
-    double intPart;
-    phase = modf(getTime() / period, &intPart);
     VectorXd s(skeleton->getNumBodyNodes() * 12);
     const BodyNode *root = skeleton->getRootBodyNode();
     Isometry3d T = root->getTransform();
@@ -172,7 +192,7 @@ void MimicEnv::updateState()
 
 double MimicEnv::cost()
 {
-    kin_skeleton->setPositions(positions[frameIdx]);
+    kin_skeleton->setPositions(refMotion[frameIdx]);
     const vector<Joint*> &joints = skeleton->getJoints();
     const vector<Joint*> &kin_joints = kin_skeleton->getJoints();
     size_t n = joints.size();

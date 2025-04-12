@@ -22,18 +22,20 @@ class MimicEnv: public CharacterEnv
         Eigen::MatrixXd mkp, mkd;
         size_t endEffectorIndices[4];
         std::vector<std::string> endEffectorNames{"Foot", "foot", "Hand", "hand"};
-        std::vector<Eigen::VectorXd> positions;
+        std::vector<Eigen::VectorXd> refMotion;
         Eigen::VectorXd scales;
 
         int mocapFPS = 120;
         int actionRate = 30;
         int forceRate = 600;
-        size_t frameIdx = 0;
+        int frameIdx = 0;
+        double period, phase, phaseShift;
 
         double w_p = 5, w_r = 3, w_e = 30, w_b = 10;
 
-        std::mt19937 rng;
-        std::uniform_int_distribution<size_t> uni_dist;
+        std::default_random_engine generator;
+        std::uniform_real_distribution<double> uni_dist;
+        std::normal_distribution<double> norm_dist;
 };
 
 #endif

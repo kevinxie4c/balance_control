@@ -102,6 +102,7 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
     mkd = MatrixXd::Zero(kd.size(), kd.size());
     mkp.diagonal() = kp;
     mkd.diagonal() = kd;
+
     period = (double)refMotion.size() / frameRate;
     phaseShift = 0;
 
@@ -119,20 +120,25 @@ SimpleEnv::~SimpleEnv()
 void SimpleEnv::reset()
 {
     world->reset();
+
     phaseShift = uni_dist(generator);
     double intPart;
     phase = modf(getTime() / period + phaseShift, &intPart);
     frameIdx = (size_t)round(phase * refMotion.size());
     if (frameIdx >= refMotion.size())
         frameIdx -= refMotion.size();
+
     VectorXd initPos = VectorXd::Zero(skeleton->getNumDofs());
     initPos << 0, 0, 0, refMotion[frameIdx];
     skeleton->setPositions(initPos);
+
     VectorXd initVel = VectorXd::Zero(skeleton->getNumDofs());
     initVel[0] = 1.5 + norm_dist(generator);
     skeleton->setVelocities(initVel);
+
     prev_com = skeleton->getRootBodyNode()->getCOM();
     done = false;
+
     updateState();
 }
 
