@@ -25,8 +25,9 @@ MimicEnv::MimicEnv(const char *cfgFilename)
 
     SimCharacter character(json["character"]);
     skeleton = character.skeleton;
-    skeleton->setGravity(Vector3d(0, -9.8, 0));
+    //skeleton->setGravity(Vector3d(0, -9.8, 0)); // y-axis is up in skeleton's coordinate
     world = dart::simulation::World::create();
+    world->setGravity(Vector3d(0, 0, -9.8)); // z-axis is up in world coordinate
     world->addSkeleton(skeleton);
     world->setTimeStep(1.0 / forceRate);
     world->getConstraintSolver()->setCollisionDetector(dart::collision::DARTCollisionDetector::create());
@@ -196,8 +197,9 @@ double MimicEnv::cost()
     double err_e = 0;
     for (size_t i = 0; i < n_ef; ++i)
     {
-        const BodyNode *node = skeleton->getBodyNode(i);
-        const BodyNode *kin_node = kin_skeleton->getBodyNode(i);
+        size_t idx = endEffectorIndices[i];
+        const BodyNode *node = skeleton->getBodyNode(idx);
+        const BodyNode *kin_node = kin_skeleton->getBodyNode(idx);
         Eigen::Vector3d p = node->getCOM();
         Eigen::Vector3d pr = kin_node->getCOM();
         err_e += fabs(p.y() - pr.y());
@@ -209,8 +211,9 @@ double MimicEnv::cost()
     Eigen::Vector3d COMr = kin_skeleton->getCOM();
     for (size_t i = 0; i < n_ef; ++i)
     {
-        const BodyNode *node = skeleton->getBodyNode(i);
-        const BodyNode *kin_node = kin_skeleton->getBodyNode(i);
+        size_t idx = endEffectorIndices[i];
+        const BodyNode *node = skeleton->getBodyNode(idx);
+        const BodyNode *kin_node = kin_skeleton->getBodyNode(idx);
         Eigen::Vector3d p = node->getCOM();
         Eigen::Vector3d pr = kin_node->getCOM();
         Eigen::Vector3d rci = COM - p;
