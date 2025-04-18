@@ -5,7 +5,7 @@
 #include <nlohmann/json.hpp>
 #include <dart/collision/bullet/BulletCollisionDetector.hpp>
 #include "SimCharacter.h"
-#include "MimicEnv.h"
+#include "MimicReducedEnv.h"
 #include "MathUtil.h"
 #include "IOUtil.h"
 
@@ -15,7 +15,7 @@ using namespace dart::dynamics;
 
 constexpr size_t n_ef = 4;
 
-MimicEnv::MimicEnv(const char *cfgFilename)
+MimicReducedEnv::MimicReducedEnv(const char *cfgFilename)
 {
     ifstream input(cfgFilename);
     if (input.fail())
@@ -31,9 +31,9 @@ MimicEnv::MimicEnv(const char *cfgFilename)
     world->setGravity(Vector3d(0, 0, -9.8)); // z-axis is up in world coordinate
     world->addSkeleton(skeleton);
     world->setTimeStep(1.0 / forceRate);
-    //world->getConstraintSolver()->setCollisionDetector(dart::collision::DARTCollisionDetector::create());
-    world->getConstraintSolver()->setCollisionDetector(dart::collision::BulletCollisionDetector::create());
-    state = VectorXd(skeleton->getNumBodyNodes() * 12 + 1);
+    world->getConstraintSolver()->setCollisionDetector(dart::collision::DARTCollisionDetector::create());
+    //world->getConstraintSolver()->setCollisionDetector(dart::collision::BulletCollisionDetector::create());
+
     size_t j = 0;
     for (size_t i = 0; i < skeleton->getNumBodyNodes(); ++i)
     {
@@ -47,6 +47,34 @@ MimicEnv::MimicEnv(const char *cfgFilename)
             }
         }
     }
+
+    for (size_t i = 0; i < skeleton->getNumBodyNodes(); ++i)
+    {
+        const BodyNode *bn = skeleton->getBodyNode(i);
+        for (const string &s: fallenNodeNames)
+        {
+            if (bn->getName().rfind(s) != string::npos)
+            {
+                fallenNodeIndices.push_back(i);
+                break;
+            }
+        }
+    }
+
+    for (size_t i = 0; i < skeleton->getNumBodyNodes(); ++i)
+    {
+        const BodyNode *bn = skeleton->getBodyNode(i);
+        if (bn->getParentJoint()->getType() != "WeldJoint")
+            bodyNodeIndices.push_back(i);
+    }
+
+    for (size_t i = 0; i < skeleton->getNumJoints(); ++i)
+    {
+        Joint *joint = skeleton->getJoint(i);
+        if (joint->getType() != "WeldJoint")
+            jointIndices.push_back(i);
+    }
+
     refMotion = readVectorXdListFrom(json["ref_motion"]);
 
     floor = Skeleton::create("floor");
@@ -70,7 +98,7 @@ MimicEnv::MimicEnv(const char *cfgFilename)
     
     double cfm = dart::constraint::JointLimitConstraint::getConstraintForceMixing();
     double erp = dart::constraint::JointLimitConstraint::getErrorReductionParameter();
-    cfm = 0.1;
+    cfm = 0.01;
     erp = 0.2;
     dart::constraint::JointLimitConstraint::setConstraintForceMixing(cfm);
     dart::constraint::JointLimitConstraint::setErrorReductionParameter(erp);
@@ -91,7 +119,20 @@ MimicEnv::MimicEnv(const char *cfgFilename)
     if (json.contains("enableRSI"))
         enableRSI = json["enableRSI"].get<bool>();
 
-    action = VectorXd(skeleton->getNumDofs());
+    state = VectorXd(bodyNodeIndices.size() * 12 + 1);
+    action = VectorXd(skeleton->getNumDofs() - 6);
+
+    skeleton->setPositionLowerLimits(readVectorXdFrom(json["lower_limits"]));
+    skeleton->setPositionUpperLimits(readVectorXdFrom(json["upper_limits"]));
+
+    for (Joint *joint: skeleton->getJoints())
+    {
+        joint->setActuatorType(Joint::FORCE);
+        joint->setLimitEnforcement(true);
+    }
+
+    skeleton->setSelfCollisionCheck(false);
+    skeleton->setAdjacentBodyCheck(false);
 
     kin_skeleton = skeleton->cloneSkeleton();
 
@@ -102,10 +143,12 @@ MimicEnv::MimicEnv(const char *cfgFilename)
     uni_dist = uniform_real_distribution<double>(0.0, 0.9);
     norm_dist = normal_distribution<double>(0.0, 1.0);
 
+    w_r = 0; // TODO: need to correct the root position
+
     reset();
 }
 
-void MimicEnv::reset()
+void MimicReducedEnv::reset()
 {
     world->reset();
     size_t idx = 0;
@@ -126,16 +169,18 @@ void MimicEnv::reset()
     updateState();
 }
 
-void MimicEnv::step()
+void MimicReducedEnv::step()
 {
+    fallen = false;
     double intPart;
     phase = modf(getTime() / period + phaseShift, &intPart);
     frameIdx = (size_t)round(phase * refMotion.size());
     if (frameIdx >= refMotion.size())
         frameIdx -= refMotion.size();
 
-    const VectorXd &target = refMotion[frameIdx];
-    VectorXd ref = target + (action.array().min(1).max(-1) * scales.array()).matrix();
+    const VectorXd &target = refMotion[frameIdx].tail(skeleton->getNumDofs() - 6);
+    VectorXd ref(skeleton->getNumDofs());
+    ref << 0, 0, 0, 0, 0, 0, target + (action.array().min(1).max(-1) * scales.array()).matrix();
 
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
@@ -159,15 +204,29 @@ void MimicEnv::step()
 
         skeleton->setForces(force);
         world->step();
+
+        /*
+        dart::collision::CollisionResult result = world->getLastCollisionResult();
+        for (size_t j = 0; j < fallenNodeIndices.size(); ++j)
+        {
+            const BodyNode *bn = skeleton->getBodyNode(fallenNodeIndices[j]);
+            if (result.inCollision(bn))
+            {
+                fallen = true;
+                //cout << bn->getName() << endl;
+                break;
+            }
+        }
+        */
     }
     updateState();
 }
 
-void MimicEnv::updateState()
+void MimicReducedEnv::updateState()
 {
     VectorXd q = skeleton->getPositions();
     VectorXd dq = skeleton->getVelocities();
-    VectorXd s(skeleton->getNumBodyNodes() * 12);
+    VectorXd s(bodyNodeIndices.size() * 12);
     const BodyNode *root = skeleton->getRootBodyNode();
     Isometry3d T = root->getTransform();
     Vector3d trans, rot;
@@ -176,33 +235,35 @@ void MimicEnv::updateState()
     s.segment(3, 3) = rot;
     s.segment(6, 3) = root->getLinearVelocity();
     s.segment(9, 3) = root->getAngularVelocity();
-    for (size_t i = 1; i < skeleton->getNumBodyNodes(); ++i)
+    for (size_t j = 1; j < bodyNodeIndices.size(); ++j)
     {
-        const BodyNode *bn = skeleton->getBodyNode(i);
+        const BodyNode *bn = skeleton->getBodyNode(bodyNodeIndices[j]);
         T = bn->getTransform(root, root);
         setTransNRot(T, trans, rot);
-        s.segment(i * 12, 3) = trans;
-        s.segment(i * 12 + 3, 3) = rot;
-        s.segment(i * 12 + 6, 3) = bn->getLinearVelocity(Frame::World(), root);
-        s.segment(i * 12 + 9, 3) = bn->getAngularVelocity(Frame::World(), root);
+        s.segment(j * 12, 3) = trans;
+        s.segment(j * 12 + 3, 3) = rot;
+        s.segment(j * 12 + 6, 3) = bn->getLinearVelocity(Frame::World(), root);
+        s.segment(j * 12 + 9, 3) = bn->getAngularVelocity(Frame::World(), root);
     }
     state << s, phase;
-    reward = 20 - cost();
-    done = reward < 10;
+    double c = cost();
+    reward = 40 - c - 0.5 * pow(action.norm(), 2);
+    done = c > 15 || fallen;
 }
 
-double MimicEnv::cost()
+double MimicReducedEnv::cost()
 {
     kin_skeleton->setPositions(refMotion[frameIdx]);
     const vector<Joint*> &joints = skeleton->getJoints();
     const vector<Joint*> &kin_joints = kin_skeleton->getJoints();
-    size_t n = joints.size();
+    size_t n = jointIndices.size() - 1;
 
     double err_p = 0;
-    for (size_t i = 0; i < n; ++i)
+    for (size_t i = 1; i < jointIndices.size(); ++i)
     {
-        const Joint *joint = joints[i];
-        const Joint *kin_joint = kin_joints[i];
+        size_t j = jointIndices[i];
+        const Joint *joint = joints[j];
+        const Joint *kin_joint = kin_joints[j];
         //err_p += joint->getPositionDifferences(joint->getPositions(), kin_joint->getPositions()).norm() + 0.1 * (joint->getVelocities() - kin_joint->getVelocities()).norm();
         err_p += joint->getPositionDifferences(joint->getPositions(), kin_joint->getPositions()).norm();
     }
@@ -247,10 +308,11 @@ double MimicEnv::cost()
     //err_b += (skeleton->getCOMLinearVelocity() - kin_skeleton->getCOMLinearVelocity()).norm() * 0.1;
 
     //cout << "cost: " << " " << err_p << " " << err_r << " " << err_e << " " << err_b << endl;
+    //cout << w_p * err_p + w_r * err_r + w_e * err_e + w_b * err_b << endl;
     return w_p * err_p + w_r * err_r + w_e * err_e + w_b * err_b;
 }
 
-void MimicEnv::print_info()
+void MimicReducedEnv::print_info()
 {
     cout << "BodyNode:" << endl;
     for (size_t i = 0; i < skeleton->getNumBodyNodes(); ++i)
