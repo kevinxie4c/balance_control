@@ -248,7 +248,7 @@ void MimicReducedEnv::updateState()
     state << s, phase;
     double c = cost();
     reward = 40 - c - 0.5 * pow(action.norm(), 2);
-    done = c > 15 || fallen;
+    done = c > 12 || fallen;
 }
 
 double MimicReducedEnv::cost()

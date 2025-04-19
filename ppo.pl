@@ -16,7 +16,7 @@ my $use_gpu = undef;
 my $load_model = undef;
 my $save_model = 'model';
 my $play_policy = 0;
-my $reinit_logstd = 0;
+my $init_logstd = undef;
 my $save_interval = 200;
 my $g_sigma = 0;
 my $outdir = "output";
@@ -38,7 +38,7 @@ GetOptions(
     'l|load_model=s'       => \$load_model,
     's|save_model=s'       => \$save_model,
     'p|play_policy'        => \$play_policy,
-    'r|reinit_logstd'      => \$reinit_logstd,
+    'S|init_logstd=f'      => \$init_logstd,
     'i|save_interval=i'    => \$save_interval,
     'n|num_threads=i'      => \$num_threads,
     'm|mini_batch_size=i'  => \$mini_batch_size,
@@ -382,14 +382,18 @@ if (defined($load_model)) {
     $actor_net->load_parameters("$load_model/actor.par");
     print "load critic from $load_model/critic.par\n";
     $critic_net->load_parameters("$load_model/critic.par");
-    if ($reinit_logstd) {
-        $actor_net->logstd->initialize(init => mx->init->Zero, force_reinit => 1);
+    if (defined($init_logstd)) {
+        $actor_net->logstd->initialize(init => mx->init->Constant($init_logstd), force_reinit => 1);
     }
 } else {
     $actor_net->dense_base->initialize(mx->init->Xavier());
     $actor_net->dense_mu->initialize(mx->init->Normal(0.01));
     #$actor_net->dense_sigma->initialize(mx->init->Zero);
-    $actor_net->logstd->initialize(init => mx->init->Zero);
+    if (defined($init_logstd)) {
+        $actor_net->logstd->initialize(init => mx->init->Constant($init_logstd), force_reinit => 1);
+    } else {
+        $actor_net->logstd->initialize(init => mx->init->Zero);
+    }
     $critic_net->initialize(mx->init->Xavier());
 }
 
