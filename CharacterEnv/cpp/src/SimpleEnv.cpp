@@ -1,5 +1,6 @@
 #include <dart/collision/bullet/BulletCollisionDetector.hpp>
 #include <dart/collision/ode/OdeCollisionDetector.hpp>
+#include <chrono>
 #include "SimCharacter.h"
 #include "SimpleEnv.h"
 #include "IOUtil.h"
@@ -32,15 +33,26 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
     //((dart::constraint::BoxedLcpConstraintSolver*)world->getConstraintSolver())->setBoxedLcpSolver(std::unique_ptr<dart::constraint::BoxedLcpSolver>(new dart::constraint::DantzigBoxedLcpSolver()));
     ((dart::constraint::BoxedLcpConstraintSolver*)world->getConstraintSolver())->setBoxedLcpSolver(std::unique_ptr<dart::constraint::BoxedLcpSolver>(new dart::constraint::PgsBoxedLcpSolver()));
 
+    for (size_t i = 0; i < skeleton->getNumBodyNodes(); ++i)
+    {
+        BodyNode *bn = skeleton->getBodyNode(i);
+        for (ShapeNode *sn: bn->getShapeNodes())
+        {
+            sn->getDynamicsAspect()->setFrictionCoeff(json["friction_coeff"].get<double>());
+            sn->getDynamicsAspect()->setRestitutionCoeff(json["restitution_coeff"].get<double>());
+        }
+    }
+
     floor = Skeleton::create("floor");
     BodyNodePtr body = floor->createJointAndBodyNodePair<WeldJoint>(nullptr).second;
     // Deprecated
     //body->setFrictionCoeff(json["friction_coeff"].get<double>());
     //body->setRestitutionCoeff(json["restitution_coeff"].get<double>());
     body->setName("floor");
-    double floor_width = 1e2;
+    double floor_length = 1e3;
+    double floor_width = 1e1;
     double floor_height = 1;
-    shared_ptr<BoxShape> box(new BoxShape(Vector3d(floor_width, floor_height, floor_width)));
+    shared_ptr<BoxShape> box(new BoxShape(Vector3d(floor_length, floor_height, floor_width)));
     //auto shapeNode = body->createShapeNodeWith<CollisionAspect, DynamicsAspect>(box);
     auto shapeNode = body->createShapeNodeWith<CollisionAspect, DynamicsAspect, VisualAspect>(box);
     shapeNode->getDynamicsAspect()->setFrictionCoeff(json["friction_coeff"].get<double>());
@@ -53,8 +65,8 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
 
     scales = readVectorXdFrom(json["scales"]);
     //state = VectorXd(skeleton->getNumDofs() * 2);
-    state = VectorXd(skeleton->getNumDofs() * 2 + 3);
-    action = VectorXd(skeleton->getNumDofs());
+    state = VectorXd(skeleton->getNumDofs() * 2 + 4);
+    action = VectorXd(skeleton->getNumDofs() - 3);
 
     skeleton->setPositionLowerLimits(readVectorXdFrom(json["lower_limits"]));
     skeleton->setPositionUpperLimits(readVectorXdFrom(json["upper_limits"]));
@@ -69,8 +81,34 @@ SimpleEnv::SimpleEnv(const char *cfgFilename)
         joint->setLimitEnforcement(true);
     }
 
+    double cfm = dart::constraint::JointLimitConstraint::getConstraintForceMixing();
+    double erp = dart::constraint::JointLimitConstraint::getErrorReductionParameter();
+    cfm = 0.1;
+    erp = 0.2;
+    dart::constraint::JointLimitConstraint::setConstraintForceMixing(cfm);
+    dart::constraint::JointLimitConstraint::setErrorReductionParameter(erp);
+    dart::constraint::ContactConstraint::setConstraintForceMixing(cfm);
+    dart::constraint::ContactConstraint::setErrorReductionParameter(erp);
+    cout << "CFM: " << cfm << endl;
+    cout << "ERP: " << erp << endl;
+
     refMotion = readVectorXdListFrom(json["ref_motion"]);
     frameRate = json["frame_rate"].get<int>();
+    kp = Eigen::VectorXd(skeleton->getNumDofs());
+    kp << 0, 0, 0, readVectorXdFrom(json["kp"]);
+    kd = Eigen::VectorXd(skeleton->getNumDofs());
+    kd << 0, 0, 0, readVectorXdFrom(json["kd"]);
+    mkp = MatrixXd::Zero(kp.size(), kp.size());
+    mkd = MatrixXd::Zero(kd.size(), kd.size());
+    mkp.diagonal() = kp;
+    mkd.diagonal() = kd;
+
+    period = (double)refMotion.size() / frameRate;
+    phaseShift = 0;
+
+    generator = default_random_engine(chrono::system_clock::now().time_since_epoch().count());
+    uni_dist = uniform_real_distribution<double>(0.0, 1.0);
+    norm_dist = normal_distribution<double>(0.0, 1.0);
 
     reset();
 }
@@ -82,36 +120,54 @@ SimpleEnv::~SimpleEnv()
 void SimpleEnv::reset()
 {
     world->reset();
-    VectorXd zeros = VectorXd::Zero(skeleton->getNumDofs());
-    skeleton->setPositions(zeros);
-    skeleton->setVelocities(zeros);
+
+    phaseShift = uni_dist(generator);
+    double intPart;
+    phase = modf(getTime() / period + phaseShift, &intPart);
+    frameIdx = (size_t)round(phase * refMotion.size());
+    if (frameIdx >= refMotion.size())
+        frameIdx -= refMotion.size();
+
+    VectorXd initPos = VectorXd::Zero(skeleton->getNumDofs());
+    initPos << 0, 0, 0, refMotion[frameIdx];
+    skeleton->setPositions(initPos);
+
+    VectorXd initVel = VectorXd::Zero(skeleton->getNumDofs());
+    initVel[0] = 1.5 + norm_dist(generator);
+    skeleton->setVelocities(initVel);
+
     prev_com = skeleton->getRootBodyNode()->getCOM();
     done = false;
+
     updateState();
 }
 
 void SimpleEnv::step()
 {
+    double intPart;
+    phase = modf(getTime() / period + phaseShift, &intPart);
+    frameIdx = (size_t)round(phase * refMotion.size());
+    if (frameIdx >= refMotion.size())
+        frameIdx -= refMotion.size();
+
+    const VectorXd &target = refMotion[frameIdx];
+    VectorXd ref(skeleton->getNumDofs());
+    ref << 0, 0, 0, target + (action.array().min(1).max(-1) * scales.array()).matrix();
+
     prev_com = skeleton->getRootBodyNode()->getCOM();
-    VectorXd force = action.array() * scales.array();
-    force.head(3).setZero();
-    VectorXd dq = skeleton->getVelocities();
-    VectorXd ddq = skeleton->getAccelerations();
-    VectorXd ds(state.size());
-    ds << dq, ddq, 0, 0, 0;
-    ds = (ds.array() / (normalizerStd.array() + 1e-8)).matrix();
-    VectorXd df = ((policyJacobian * ds).array() * scales.array()).matrix();
-    df.head(3).setZero();
-    //df.setZero();
-    double dt = 1.0 / forceRate;
-    //force.setZero();
-    //cout << force.transpose() << endl;
     done = false;
+
     for (size_t i = 0; i < forceRate / actionRate; ++i)
     {
-        VectorXd f = force + df * dt * i;
-        //skeleton->setForces(force);
-        skeleton->setForces(f);
+        // stable PD
+        VectorXd q = skeleton->getPositions();
+        VectorXd dq = skeleton->getVelocities();
+        MatrixXd invM = (skeleton->getMassMatrix() + mkd * skeleton->getTimeStep()).inverse();
+        VectorXd p = -kp.array() * skeleton->getPositionDifferences(q + dq * skeleton->getTimeStep(), ref).array();
+        VectorXd d = -kd.array() * dq.array();
+        VectorXd qddot = invM * (-skeleton->getCoriolisAndGravityForces() + p + d + skeleton->getConstraintForces());
+        VectorXd force = p + d - (kd.array() * qddot.array()).matrix() * world->getTimeStep();
+        skeleton->setForces(force);
         world->step();
     }
     updateState();
@@ -129,19 +185,20 @@ void SimpleEnv::updateState()
     Vector3d r_IP = skeleton->getCOM() - spNode->getCOM();
     VectorXd q = skeleton->getPositions();
     VectorXd dq = skeleton->getVelocities();
-    state << q, dq, r_IP;
+    state << q, dq, r_IP, phase;
     Eigen::Vector3d curr_com = skeleton->getRootBodyNode()->getCOM();
     done = done || (curr_com.y() < 0.50 || curr_com.y() > 1.70);
 
     double r_com_vel, r_ref, r_norm;
-    r_com_vel = 1 * exp(-5 * abs((curr_com.x() - prev_com.x()) * actionRate - 1.2));
+    //r_com_vel = 1 * exp(-5 * abs((curr_com.x() - prev_com.x()) * actionRate - 1.2));
+    r_com_vel = 0.2 * ((curr_com.x() - prev_com.x()) * actionRate - 1.2);
 
     //double theta = sin(getTime() / 4 * M_PI) * M_PI / 6;
     //r_ref = 10 * (exp(-5 * abs(q[3] - theta)) + exp(-5 * abs(q[6] + theta)));
-    VectorXd ref = refMotion[(size_t)round(getTime() * frameRate) % refMotion.size()];
-    r_ref = 10 * exp(-2 * (q.tail(6) - ref).norm());
+    VectorXd ref = refMotion[frameIdx];
+    r_ref = 20 * exp(-1 * (q.tail(6) - ref).norm());
 
-    r_norm = 0.5 * exp(-0.5 * action.norm());
+    r_norm = 10 * exp(-0.5 * action.norm());
 
     reward = r_com_vel + r_ref + r_norm;
     //cout << r_com_vel << " " << r_ref << " " << r_norm << endl;

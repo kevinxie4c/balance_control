@@ -1,0 +1,9 @@
+{
+    "actor_layers": [512, 512],
+    "critic_layers": [512, 512],
+    "critic_state_layers": [256],
+    "critic_action_layers": [256],
+    "critic_base_layers": [512],
+    "policy_learning_rate": 2e-4,
+    "value_function_learning_rate": 2e-3
+}

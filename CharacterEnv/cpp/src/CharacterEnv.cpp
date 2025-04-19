@@ -3,9 +3,11 @@
 #include <dart/dart.hpp>
 #include <nlohmann/json.hpp>
 #include <osgGA/NodeTrackerManipulator>
+#include <osgViewer/config/SingleWindow>
 #include "IOUtil.h"
 #include "CharacterEnv.h"
 #include "MimicEnv.h"
+#include "MimicReducedEnv.h"
 #include "SimpleEnv.h"
 #include "MomentumCtrlEnv.h"
 #include "CartpoleEnv.h"
@@ -30,6 +32,8 @@ CharacterEnv* CharacterEnv::makeEnv(const char *cfgFilename)
     input.close();
     if (json["env"] == "mimic")
         env = new MimicEnv(cfgFilename);
+    else if (json["env"] == "mimic-reduced")
+        env = new MimicReducedEnv(cfgFilename);
     else if (json["env"] == "simple")
         env = new SimpleEnv(cfgFilename);
     else if (json["env"] == "momentum-ctrl")
@@ -103,6 +107,7 @@ void CharacterEnv::create_viewer()
 {
     worldNode = new dart::gui::osg::RealTimeWorldNode(world);
     viewer = new dart::gui::osg::ImGuiViewer(osg::Vec4(0.0, 0.5, 1.0, 1.0));
+    //viewer->apply(new osgViewer::SingleWindow());
     viewer->addWorldNode(worldNode.get());
     viewer->getCameraManipulator()->setHomePosition(eye, center, up);
     viewer->switchHeadlights(true);
