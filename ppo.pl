@@ -537,7 +537,7 @@ if ($play_policy) {
         my $J = compute_policy_jacobian($env, $observation);
         print $fh_J $J->aspdl->at(4, 3), " ", $J->aspdl->at(9, 3), "\n"; # note that PDL is column-major while MXNet is row-major
         #print $J->aspdl, "\n";
-        set_policy_jacobian($env, $observation);
+        #set_policy_jacobian($env, $observation);
         my ($mu, $sigma) = $actor_net->($observation);
         my $action = $mu;
         #$action = $actor_net->sample($mu, $sigma);
@@ -692,7 +692,7 @@ for my $itr (1 .. $num_itrs) {
         }
         $env->set_normalizer_mean($state_normalizer->{ms}{mean}->aspdl->list);
         $env->set_normalizer_std($state_normalizer->{ms}{std}->aspdl->list);
-        set_policy_jacobian($env, $observation[$id]);
+        #set_policy_jacobian($env, $observation[$id]);
         $para_env->step($id);
         $finished[$id] = 0;
         ++$total_steps;
@@ -824,7 +824,7 @@ POLICY_LOOP:
         $env->set_action_list(($action * $a_scale)->aspdl->list);
         $env->set_normalizer_mean($state_normalizer->{ms}{mean}->aspdl->list);
         $env->set_normalizer_std($state_normalizer->{ms}{std}->aspdl->list);
-        set_policy_jacobian($env, $observation);
+        #set_policy_jacobian($env, $observation);
         $env->step;
         my $reward = $env->get_reward;
         $test_return += $acc_gamma * $reward;
