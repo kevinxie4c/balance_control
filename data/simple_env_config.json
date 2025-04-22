@@ -11,5 +11,7 @@
     "lower_limits": "data/simple_env_lower_limits.txt",
     "upper_limits": "data/simple_env_upper_limits.txt",
     "ref_motion": "data/0005_Walking001_single_cycle_sim_env.txt",
-    "frame_rate": 120
+    "frame_rate": 120,
+    "kp": "data/simple_env_kp.txt",
+    "kd": "data/simple_env_kd.txt"
 }
