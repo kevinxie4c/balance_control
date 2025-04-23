@@ -141,7 +141,7 @@ MimicReducedEnv::MimicReducedEnv(const char *cfgFilename)
     phaseShift = 0;
     
     generator = default_random_engine(chrono::system_clock::now().time_since_epoch().count());
-    uni_dist = uniform_real_distribution<double>(0.0, 0.9);
+    uni_dist = uniform_real_distribution<double>(0.0, 1.0);
     norm_dist = normal_distribution<double>(0.0, 1.0);
 
     w_r = 0; // TODO: need to correct the root position
@@ -164,7 +164,9 @@ void MimicReducedEnv::reset()
     VectorXd initPos = refMotion[frameIdx];
     skeleton->setPositions(initPos);
 
-    VectorXd initVel = skeleton->getPositionDifferences(refMotion[frameIdx + 1], refMotion[frameIdx]) * mocapFPS;
+    VectorXd initVel = frameIdx < refMotion.size() - 1 ?
+        skeleton->getPositionDifferences(refMotion[frameIdx + 1], refMotion[frameIdx]) * mocapFPS
+        : skeleton->getPositionDifferences(refMotion[frameIdx], refMotion[frameIdx - 1]) * mocapFPS;
     skeleton->setVelocities(initVel);
 
     updateState();
