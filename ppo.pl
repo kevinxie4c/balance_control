@@ -33,6 +33,8 @@ my $parameters = undef;
 my $config_file = undef;
 my $print_help = 0;
 
+my @args = @ARGV;
+
 GetOptions(
     'G|gpu:i'              => \$use_gpu,
     'l|load_model=s'       => \$load_model,
@@ -513,6 +515,7 @@ if ($play_policy) {
     exit();
 }
 
+write_file("$save_model/cmd.txt", "$0 @args\n");
 #open my $f_action, '>', "$outdir/action.txt";
 #open my $f_pos, '>', "$outdir/position.txt";
 open my $f_ret, '>', "$save_model/return_length.txt";
