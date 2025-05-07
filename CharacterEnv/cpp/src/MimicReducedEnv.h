@@ -29,10 +29,11 @@ class MimicReducedEnv: public CharacterEnv
         int actionRate = 30;
         int forceRate = 600;
         int frameIdx = 0;
+        int numPeriods = 0;
         double period, phase, phaseShift;
 
         //double w_p = 5, w_r = 3, w_e = 30, w_b = 10;
-        double w_p = 5, w_r = 3, w_e = 10, w_b = 50;
+        double w_p = 10, w_r = 3, w_e = 3, w_b = 3;
 
         std::default_random_engine generator;
         std::uniform_real_distribution<double> uni_dist;

@@ -33,6 +33,8 @@ my $parameters = undef;
 my $config_file = undef;
 my $print_help = 0;
 
+my @args = @ARGV;
+
 GetOptions(
     'G|gpu:i'              => \$use_gpu,
     'l|load_model=s'       => \$load_model,
@@ -386,8 +388,9 @@ if (defined($load_model)) {
         $actor_net->logstd->initialize(init => mx->init->Constant($init_logstd), force_reinit => 1);
     }
 } else {
-    $actor_net->dense_base->initialize(mx->init->Xavier());
-    $actor_net->dense_mu->initialize(mx->init->Normal(0.01));
+    #$actor_net->dense_base->initialize(mx->init->Xavier());
+    $actor_net->dense_base->initialize(mx->init->Uniform(0.001));
+    $actor_net->dense_mu->initialize(mx->init->Uniform(0.001));
     #$actor_net->dense_sigma->initialize(mx->init->Zero);
     if (defined($init_logstd)) {
         $actor_net->logstd->initialize(init => mx->init->Constant($init_logstd), force_reinit => 1);
@@ -513,6 +516,7 @@ if ($play_policy) {
     exit();
 }
 
+write_file("$save_model/cmd.txt", "$0 @args\n");
 #open my $f_action, '>', "$outdir/action.txt";
 #open my $f_pos, '>', "$outdir/position.txt";
 open my $f_ret, '>', "$save_model/return_length.txt";
