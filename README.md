@@ -5,7 +5,7 @@ Install Perl packages
 cpan ExtUtils::PkgConfig PDL GD File::Slurp JSON
 ```
 
-Install MXNet and Perl binding following the instructions [here](https://mxnet.apache.org/versions/1.5.0/install/).
+Install MXNet and Perl binding following the instructions in [official DOCS](https://mxnet.apache.org/versions/1.5.0/install/) or [here](https://github.com/kevinxie4c/mxnet/blob/master/INSTALL.md).
 
 Install [Eigen3](https://eigen.tuxfamily.org/index.php?title=Main_Page), [DARTSIM](https://dartsim.github.io/), [JSON for Modern C++](https://github.com/nlohmann/json).
 
