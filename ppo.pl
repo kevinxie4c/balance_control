@@ -388,8 +388,9 @@ if (defined($load_model)) {
         $actor_net->logstd->initialize(init => mx->init->Constant($init_logstd), force_reinit => 1);
     }
 } else {
-    $actor_net->dense_base->initialize(mx->init->Xavier());
-    $actor_net->dense_mu->initialize(mx->init->Normal(0.01));
+    #$actor_net->dense_base->initialize(mx->init->Xavier());
+    $actor_net->dense_base->initialize(mx->init->Uniform(0.001));
+    $actor_net->dense_mu->initialize(mx->init->Uniform(0.001));
     #$actor_net->dense_sigma->initialize(mx->init->Zero);
     if (defined($init_logstd)) {
         $actor_net->logstd->initialize(init => mx->init->Constant($init_logstd), force_reinit => 1);
