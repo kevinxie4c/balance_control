@@ -144,8 +144,6 @@ MimicReducedEnv::MimicReducedEnv(const char *cfgFilename)
     uni_dist = uniform_real_distribution<double>(0.0, 1.0);
     norm_dist = normal_distribution<double>(0.0, 1.0);
 
-    w_r = 0; // TODO: need to correct the root position
-
     reset();
 }
 
@@ -159,7 +157,11 @@ void MimicReducedEnv::reset()
     phase = modf(getTime() / period + phaseShift, &intPart);
     frameIdx = (size_t)round(phase * refMotion.size());
     if (frameIdx >= refMotion.size())
+    {
         frameIdx -= refMotion.size();
+        ++intPart;
+    }
+    numPeriods = (int)intPart;
 
     VectorXd initPos = refMotion[frameIdx];
     skeleton->setPositions(initPos);
@@ -179,7 +181,11 @@ void MimicReducedEnv::step()
     phase = modf(getTime() / period + phaseShift, &intPart);
     frameIdx = (size_t)round(phase * refMotion.size());
     if (frameIdx >= refMotion.size())
+    {
         frameIdx -= refMotion.size();
+        ++intPart;
+    }
+    numPeriods = (int)intPart;
 
     const VectorXd &target = refMotion[frameIdx].tail(skeleton->getNumDofs() - 6);
     VectorXd ref(skeleton->getNumDofs());
@@ -250,13 +256,15 @@ void MimicReducedEnv::updateState()
     }
     state << s, phase;
     double c = cost();
-    reward = 40 - c - 0.5 * pow(action.norm(), 2);
-    done = c > 12 || fallen;
+    reward = 20 - c - 0.5 * pow(action.norm(), 2);
+    done = c > 8 || fallen;
 }
 
 double MimicReducedEnv::cost()
 {
-    kin_skeleton->setPositions(refMotion[frameIdx]);
+    VectorXd fullTarget = refMotion[frameIdx];
+    fullTarget[3] += 1.6443 * numPeriods;
+    kin_skeleton->setPositions(fullTarget);
     const vector<Joint*> &joints = skeleton->getJoints();
     const vector<Joint*> &kin_joints = kin_skeleton->getJoints();
     size_t n = jointIndices.size() - 1;
@@ -269,7 +277,9 @@ double MimicReducedEnv::cost()
         const Joint *kin_joint = kin_joints[j];
         //err_p += joint->getPositionDifferences(joint->getPositions(), kin_joint->getPositions()).norm() + 0.1 * (joint->getVelocities() - kin_joint->getVelocities()).norm();
         err_p += joint->getPositionDifferences(joint->getPositions(), kin_joint->getPositions()).norm();
+        //cout << joint->getPositionDifferences(joint->getPositions(), kin_joint->getPositions()).norm() << " ";
     }
+    //cout << endl;
     err_p /= n;
 
     double err_r = 0;
@@ -286,31 +296,35 @@ double MimicReducedEnv::cost()
         const BodyNode *kin_node = kin_skeleton->getBodyNode(idx);
         Eigen::Vector3d p = node->getCOM();
         Eigen::Vector3d pr = kin_node->getCOM();
-        err_e += fabs(p.z() - pr.z());
+        //err_e += fabs(p.z() - pr.z());
+        err_e += (p - pr).norm();
+        //cout << p.z() << " " << pr.z() << endl;
     }
     err_e /= n_ef;
 
     double err_b = 0;
-    Eigen::Vector3d COM = skeleton->getCOM();
-    Eigen::Vector3d COMr = kin_skeleton->getCOM();
-    for (size_t i = 0; i < n_ef; ++i)
-    {
-        size_t idx = endEffectorIndices[i];
-        const BodyNode *node = skeleton->getBodyNode(idx);
-        const BodyNode *kin_node = kin_skeleton->getBodyNode(idx);
-        Eigen::Vector3d p = node->getCOM();
-        Eigen::Vector3d pr = kin_node->getCOM();
-        Eigen::Vector3d rci = COM - p;
-        rci.z() = 0;
-        Eigen::Vector3d rci_r = COMr - pr;
-        rci_r.z() = 0;
-        err_b += (rci - rci_r).norm();
-    }
-    constexpr double h = 1.6;
-    err_b /= h * n_ef;
+    //Eigen::Vector3d COM = skeleton->getCOM();
+    //Eigen::Vector3d COMr = kin_skeleton->getCOM();
+    //for (size_t i = 0; i < n_ef; ++i)
+    //{
+    //    size_t idx = endEffectorIndices[i];
+    //    const BodyNode *node = skeleton->getBodyNode(idx);
+    //    const BodyNode *kin_node = kin_skeleton->getBodyNode(idx);
+    //    Eigen::Vector3d p = node->getCOM();
+    //    Eigen::Vector3d pr = kin_node->getCOM();
+    //    Eigen::Vector3d rci = COM - p;
+    //    //rci.z() = 0;
+    //    Eigen::Vector3d rci_r = COMr - pr;
+    //    //rci_r.z() = 0;
+    //    err_b += (rci - rci_r).norm();
+    //    //cout << rci.transpose() << " " << rci_r.transpose() << endl;
+    //}
+    //constexpr double h = 1.6;
+    //err_b /= h * n_ef;
     //err_b += (skeleton->getCOMLinearVelocity() - kin_skeleton->getCOMLinearVelocity()).norm() * 0.1;
 
     //cout << "cost: " << " " << err_p << " " << err_r << " " << err_e << " " << err_b << endl;
+    //cout << w_p * err_p << " " << w_r * err_r << " " << w_e * err_e << " " << w_b * err_b << endl;
     //cout << w_p * err_p + w_r * err_r + w_e * err_e + w_b * err_b << endl;
     return w_p * err_p + w_r * err_r + w_e * err_e + w_b * err_b;
 }
