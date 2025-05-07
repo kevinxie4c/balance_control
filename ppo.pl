@@ -348,10 +348,10 @@ package Normalizer {
     sub load {
         my ($self) = @_;
         my $h = mx->nd->load("$load_model/state_normalizer.nd");
-        $self->{ms}{mean} = $h->{mean};
-        $self->{ms}{nvar} = $h->{nvar};
-        $self->{ms}{std} = $h->{std};
-        $self->{ms}{n} = $h->{n};
+        $self->{ms}{mean} = $h->{mean}->as_in_context($current_ctx);
+        $self->{ms}{nvar} = $h->{nvar}->as_in_context($current_ctx);
+        $self->{ms}{std} = $h->{std}->as_in_context($current_ctx);
+        $self->{ms}{n} = $h->{n}->as_in_context($current_ctx);
     }
 }
 
