@@ -464,19 +464,34 @@ if (defined($load_model)) {
 unless ($play_policy) {
     for my $layer_num(0 .. scalar(@{$actor_net->dense_base}) - 1) {
         my $lip_name = "c$layer_num";
-        my $layer = $actor_net->dense_base->[$layer_num];
-        my $weight = $layer->weight->data($current_ctx);
-        my $initial_lip = abs($weight->aspdl)->sumover->max->sclr;
-        $initial_lip *= $lips_scale;
-        print "bound being initialized to $initial_lip\n";
-        my $lip_initializer = AI::MXNet::Constant->new(value => $initial_lip);
-        $actor_net->$lip_name->initialize(init => $lip_initializer);
+        if (defined($actor_net->$lip_name->_data)) { # TODO: is there a better way to check?
+            if ($lips_scale != 1) {
+                print "original $lip_name: ", $actor_net->$lip_name->data->aspdl, "\n";
+                $actor_net->$lip_name->set_data($actor_net->$lip_name->data * $lips_scale);
+            }
+        } else {
+            my $layer = $actor_net->dense_base->[$layer_num];
+            my $weight = $layer->weight->data($current_ctx);
+            my $initial_lip = abs($weight->aspdl)->sumover->max->sclr;
+            $initial_lip *= $lips_scale;
+            print "bound being initialized to $initial_lip\n";
+            my $lip_initializer = AI::MXNet::Constant->new(value => $initial_lip);
+            $actor_net->$lip_name->initialize(init => $lip_initializer);
+        }
     }
-    my $weight_mu = $actor_net->dense_mu->weight->data($current_ctx);
-    my $initial_lip_mu = abs($weight_mu->aspdl)->sumover->max->sclr;
-    $initial_lip_mu *= $lips_scale;
-    my $lip_initializer_mu = AI::MXNet::Constant->new(value => $initial_lip_mu);
-    $actor_net->c_mu->initialize(init => $lip_initializer_mu);
+    if (defined($actor_net->c_mu->_data)) { # TODO: is there a better way to check?
+        if ($lips_scale != 1) {
+            print "original c_mu: ", $actor_net->c_mu->data->aspdl, "\n";
+            $actor_net->c_mu->set_data($actor_net->c_mu->data * $lips_scale);
+        }
+    } else {
+        my $weight_mu = $actor_net->dense_mu->weight->data($current_ctx);
+        my $initial_lip_mu = abs($weight_mu->aspdl)->sumover->max->sclr;
+        $initial_lip_mu *= $lips_scale;
+        print "bound being initialized to $initial_lip_mu\n";
+        my $lip_initializer_mu = AI::MXNet::Constant->new(value => $initial_lip_mu);
+        $actor_net->c_mu->initialize(init => $lip_initializer_mu);
+    }
 }
 for my $layer_num(0 .. scalar(@{$actor_net->dense_base}) - 1) {
     my $lip_name = "c$layer_num";
